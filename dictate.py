@@ -11,11 +11,21 @@ import argparse
 active = False
 committed = ""
 
+import subprocess
+
+def notify(message):
+    try:
+        subprocess.run(["notify-send", "-u", "normal", "-i", "audio-input-microphone", "Dictator", message])
+    except Exception:
+        pass
+
 def on_press(key):
     global active
     if key == keyboard.Key.f9:
         active = not active
-        print(f"Dictation: {'ON' if active else 'OFF'}")
+        status = "ON 🔴" if active else "OFF ⚪"
+        print(f"Dictation: {status}")
+        notify(status)
 
 import re
 
