@@ -1,0 +1,5 @@
+__pycache__/
+dictate/
+.env
+debug_thoughts.log
+todo_state.json
