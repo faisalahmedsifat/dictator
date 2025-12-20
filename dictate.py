@@ -80,6 +80,10 @@ def toggle_log():
     print("[Hotkey] Toggling Log Panel...")
     monitor.toggle_log()
 
+def hide_all():
+    print("[Hotkey] Hiding All UI...")
+    monitor.hide_all()
+
 def main():
     global current_state, exit_flag, committed
     
@@ -99,7 +103,8 @@ def main():
         '<f9>': toggle_dictation,
         '<f10>': toggle_agent,
         '<ctrl>+<space>': toggle_ui,
-        '<ctrl>+<alt>+<space>': toggle_log
+        '<ctrl>+<alt>+<enter>': toggle_log,
+        '<ctrl>+<shift>+<enter>': hide_all
     }
     
     k_listener = GlobalHotKeys(hotkey_map)
@@ -134,7 +139,7 @@ def main():
                         
                         if word:
                             print(f"\n[Wake] Detected: {word}")
-                            notify("Hey Jarvis!")
+                            # notify("Hey Jarvis!")
                             monitor.update_text("I'm listening...")
                             monitor.update_status("listening")
                             # Play chime (blocking output, but input buffers in queue)
@@ -204,7 +209,7 @@ def main():
                             force_reset()
                         elif cmd:
                             print(f"Intent: Agent (Command='{cmd}')")
-                            notify(f"Agent: {cmd:.20}...")
+                            # notify(f"Agent: {cmd:.20}...")
                             monitor.update_log(f"User: {cmd}")
                             
                             # Execute Agent
@@ -213,7 +218,7 @@ def main():
                             response = process_command(cmd)
                             
                             print(f"Agent Response: {response}")
-                            notify(f"Agent: {response}")
+                            # notify(f"Agent: {response}")
                             monitor.show_agent_response(response)
                             # TODO: TTS if response is short?
                             
@@ -286,7 +291,7 @@ def main():
                                      break
                                  
                                  # Execute
-                                 notify(f"Processing: {cmd}")
+                                 # notify(f"Processing: {cmd}")
                                  monitor.update_status("processing")
                                  response = process_command(cmd)
                                  print(f"[Agent Loop] Output: {response}")
