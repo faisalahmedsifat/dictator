@@ -13,6 +13,7 @@ MODEL_FILE="$MODEL_DIR/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 echo "[*] Checking System Dependencies..."
 MISSING_DEPS=""
 if ! command -v ffmpeg &> /dev/null; then MISSING_DEPS+=" ffmpeg"; fi
+if ! command -v xdotool &> /dev/null; then MISSING_DEPS+=" xdotool"; fi
 # Simple check for portaudio header or lib might be hard, assume user handles it or pip fails
 # On Debian/Ubuntu: portaudio19-dev is needed for PyAudio (if used) or sounddevice
 

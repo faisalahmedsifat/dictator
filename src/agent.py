@@ -250,11 +250,21 @@ def handle_simulate_keys(args):
         
     return msg
 
+# Lazy import to avoid circular dep or heavy load on init
 def handle_ask_reactor(args):
+    from src.context import infer_project_context
+
     prompt = args.get("prompt", "")
     project_dir = args.get("project_dir", None)
     
     if not prompt: return "No prompt provided for Reactor."
+    
+    # Auto-infer context if missing
+    if not project_dir:
+        print("[Tool] No project_dir provided. Inferring from context...")
+        project_dir = infer_project_context()
+        if project_dir:
+            print(f"[Tool] Inferred Project Path: {project_dir}")
     
     msg = f"[Tool] Asking Reactor: '{prompt}'"
     if project_dir:
