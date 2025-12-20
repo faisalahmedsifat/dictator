@@ -1,7 +1,8 @@
-faster-whisper
 sounddevice
 numpy
+scipy
+faster-whisper
 pynput
 webrtcvad
-rich
-scipy
+openwakeword
+onnxruntime

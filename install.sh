@@ -20,7 +20,7 @@ if [ ! -f "$PYTHON_CMD" ]; then
     PYTHON_CMD="python"
 fi
 
-$PYTHON_CMD list_devices.py
+$PYTHON_CMD src/list_devices.py
 echo "------------------------------------------------"
 read -p "Enter the Device ID from the list above [default: 4]: " DEV_ID
 DEV_ID=${DEV_ID:-4}

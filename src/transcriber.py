@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from faster_whisper import WhisperModel
-from audio import audio_queue
+from .audio import audio_queue
 import webrtcvad
 import queue
 
@@ -31,14 +31,15 @@ def is_speech(chunk):
     pcm = (chunk * 32768).astype(np.int16).tobytes()
     return vad.is_speech(pcm, 16000)
 
-def transcribe_loop():
+def transcribe_loop(stream=None):
     global audio_buffer, last_text, should_reset_flag, last_partial_time, last_partial_text
     
     # Import here to avoid circular init issues if any, though not expected
-    from audio import fetch_audio, audio_queue
+    from .audio import fetch_audio, audio_queue
 
-    # Create a generator instance
-    stream = fetch_audio()
+    # Create a generator instance if not provided
+    if stream is None:
+        stream = fetch_audio()
 
     while True:
         # blocking get for the first chunk
@@ -106,6 +107,7 @@ def transcribe_loop():
         # Note: We rely on partial text updates for the stability timer now.
         
         if not segments:
+            yield (None, False)
             continue
 
         # Logic: 
