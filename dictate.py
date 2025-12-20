@@ -1,5 +1,5 @@
 from audio import start_stream
-from transcriber import transcribe_loop, load_model
+from transcriber import transcribe_loop, load_model, force_reset
 from inject import type_text, backspace
 from pynput import keyboard
 import time
@@ -23,6 +23,8 @@ def on_press(key):
     global active
     if key == keyboard.Key.f9:
         active = not active
+        if active:
+            force_reset()
         status = "ON 🔴" if active else "OFF ⚪"
         print(f"Dictation: {status}")
         notify(status)

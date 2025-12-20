@@ -11,6 +11,14 @@ vad = webrtcvad.Vad(2) # Mode 2 is aggressive
 BUFFER_SECONDS = 30
 audio_buffer = np.zeros(0, dtype=np.float32)
 last_text = ""
+should_reset_flag = False
+last_partial_time = 0 
+last_partial_text = ""
+
+def force_reset():
+    global should_reset_flag
+    print("Force reset requested.")
+    should_reset_flag = True
 
 def load_model(model_size="base.en"):
     global model
@@ -24,7 +32,7 @@ def is_speech(chunk):
     return vad.is_speech(pcm, 16000)
 
 def transcribe_loop():
-    global audio_buffer, last_text
+    global audio_buffer, last_text, should_reset_flag, last_partial_time, last_partial_text
     
     # Import here to avoid circular init issues if any, though not expected
     from audio import fetch_audio, audio_queue
@@ -39,6 +47,29 @@ def transcribe_loop():
              chunk = next(stream)
         except StopIteration:
              break
+
+        if should_reset_flag:
+            audio_buffer = np.zeros(0, dtype=np.float32)
+            last_text = ""
+            last_partial_text = ""
+            should_reset_flag = False
+            print("Audio buffer reset.")
+
+        # Check for STABILITY timeout (Fluid Auto-Commit)
+        current_time = time.time()
+        
+        # If we have a pending partial text that hasn't changed for 2 seconds
+        if last_partial_text and (current_time - last_partial_time > 2.0):
+             print(f"Auto-committing stable text: '{last_partial_text}'")
+             yield (last_partial_text, True) # Yield as FINAL
+             
+             # Clear buffer and state
+             audio_buffer = np.zeros(0, dtype=np.float32)
+             last_text = ""
+             last_partial_text = ""
+             last_partial_time = current_time # Reset timer
+
+
 
         new_data = [chunk.flatten()]
         
@@ -70,6 +101,9 @@ def transcribe_loop():
         
         # Manifest the generator to a list so we can inspect indices
         segments = list(segments_gen)
+        
+        # Update interaction time if we found ANY segments (speech detected)
+        # Note: We rely on partial text updates for the stability timer now.
         
         if not segments:
             continue
@@ -116,6 +150,11 @@ def transcribe_loop():
         if partial_text != last_text:
             yield (partial_text, False)
             last_text = partial_text
+            
+            # Update stability tracker
+            last_partial_text = partial_text
+            last_partial_time = time.time()
+            
         elif not partial_text:
             # If we cleared everything to final, partial might be empty, need to signal that?
             # Actually dictate.py just needs to know current partial state. 
@@ -123,3 +162,4 @@ def transcribe_loop():
             # so dictate can clear its committed buffer.
             yield ("", False)
             last_text = ""
+            last_partial_text = ""
