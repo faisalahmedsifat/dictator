@@ -71,6 +71,21 @@ TOOLS = [
                 "required": ["keys"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_reactor",
+            "description": "Delegate a complex task (coding, research, planning) to the 'Reactor' Super-Agent.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "Detailed description of the task for Reactor"},
+                    "project_dir": {"type": "string", "description": "Absolute path to the project directory where Reactor should work. Defaults to current directory."}
+                },
+                "required": ["prompt"]
+            }
+        }
     }
 ]
 
@@ -235,6 +250,43 @@ def handle_simulate_keys(args):
         
     return msg
 
+def handle_ask_reactor(args):
+    prompt = args.get("prompt", "")
+    project_dir = args.get("project_dir", None)
+    
+    if not prompt: return "No prompt provided for Reactor."
+    
+    msg = f"[Tool] Asking Reactor: '{prompt}'"
+    if project_dir:
+        msg += f" (in {project_dir})"
+    print(msg)
+    
+    # Check if reactor exists
+    if not shutil.which("reactor"):
+        # Fallback for user's miniconda path if mostly static
+        reactor_path = "/home/faisal/miniconda3/bin/reactor"
+        if not shutil.which(reactor_path):
+             return "Error: 'reactor' tool not found in PATH."
+        cmd = [reactor_path, "-p", prompt]
+    else:
+        cmd = ["reactor", "-p", prompt]
+
+    try:
+        # Run headlessly
+        # We use a timeout to prevent hanging forever
+        # Pass cwd if provided
+        result = subprocess.check_output(cmd, cwd=project_dir, text=True, timeout=120)
+        
+        return f"Reactor Output:\n{result.strip()}"
+    except FileNotFoundError:
+        return f"Error: Project directory '{project_dir}' not found."
+    except subprocess.TimeoutExpired:
+        return "Reactor timed out (took > 120s)."
+    except subprocess.CalledProcessError as e:
+        return f"Reactor failed with error: {e.output}"
+    except Exception as e:
+        return f"Failed to call Reactor: {e}"
+
 
 # --- Main Entry Point ---
 def process_command(user_text):
@@ -367,6 +419,8 @@ def process_command(user_text):
             result = handle_app_launcher(fn_args)
         elif fn_name == "simulate_keys":
             result = handle_simulate_keys(fn_args)
+        elif fn_name == "ask_reactor":
+            result = handle_ask_reactor(fn_args)
         else:
             result = "Error: Unknown tool."
             
