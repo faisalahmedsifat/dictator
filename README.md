@@ -1,25 +1,27 @@
 # 🎙️ Dictator
-> Global voice typing for Linux. Fast, private, and capable.
+> Global voice typing and intelligent control for Linux. Fast, private, and capable.
 
-Dictator runs in the background and types what you speak into *any* application (active window) when you press **F9**. It uses OpenAI's **Whisper** model locally for high-accuracy transcription.
+Dictator acts as your personal AI assistant. It provides a **Floating Visual Interface** to show you exactly what it's hearing and thinking. You can use it to type text anywhere or control your system (open apps, volume, web search) completely offline.
 
 ## ✨ Features
-*   **Global Hotkey**: Toggle dictation anywhere with `F9`.
-*   **Smart Agent**: Say **"Hey Jarvis"** to control your PC.
-    *   Open Apps ("Open VS Code")
-    *   Search Web ("Search youtube for cats")
-    *   System Control ("Set volume to 50%")
-    *   Type for you ("Press Alt plus Enter")
-*   **Local & Private**: Runs entirely on your machine. No cloud API keys.
-*   **Fast**: Optimized for real-time usage with partial results.
-*   **Smart**: Cleans up repeated words and handles punctuation automatically.
-*   **Visual Feedback**: Desktop notifications ("ON 🔴" / "OFF ⚪") confirm status.
+*   **Visual Interface**: A transparent, always-on-top overlay shows live transcription and status.
+*   **Global Dictation (F9)**: Toggle high-speed voice typing anywhere.
+*   **Smart Agent (F10 / "Hey Jarvis")**: Use the Qwen AI model to control your PC.
+    *   **Open Apps**: "Open Firefox", "Launch VS Code"
+    *   **Web Search**: "Search YouTube for tech news", "Open Google"
+    *   **System Control**: "Set volume to 50%", "Mute"
+    *   **Keyboard Control**: "Press Alt+F4", "Type 'Hello' for me"
+*   **Local & Private**: Powered by **Whisper** (Speech) and **Qwen** (Reasoning). No cloud API keys.
+*   **Visual Status**:
+    *   ⚪ **Gray**: Idle
+    *   🟢 **Green**: Dictating / Listening
+    *   🔵 **Blue**: Agent Processing
 
 ## 🚀 Installation
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yourusername/dictator.git
+    git clone https://github.com/faisalahmedsifat/dictator.git
     cd dictator
     ```
 
@@ -27,43 +29,52 @@ Dictator runs in the background and types what you speak into *any* application 
     ```bash
     ./install.sh
     ```
-    *   The installer will create a virtual environment, download the model, and set up a background service.
-    *   It will ask you to **select your microphone** from a list.
-    *   It performs a quick "Audio Check" to ensure the device works before finishing.
+    *   Downloads required AI models (~1.2GB).
+    *   Sets up the Python environment.
+    *   Enables the background service and asks for your Microphone.
 
-3.  **That's it!** The service is now running.
+3.  **That's it!** The overlay should appear at the bottom of your screen.
 
 ## 📖 Usage
-    
-### 🗣️ Voice Commands (Hands-Free)
-1.  Say **"Hey Jarvis"**. You will hear a *Wake Chime*.
-2.  Speak your command immediately:
-    *   *"Start dictation"* -> Beeps and starts typing whatever you say next.
-    *   *"Open Google Chrome"* -> Launches Chrome.
-    *   *"Set volume to 80%"* -> Adjusts volume.
-    *   *"Press Control C"* -> Simulates the keypress.
-3.  The agent will speak/notify back.
 
-### ⌨️ Manual Dictation
-1.  Click into any text field.
-2.  Press **F9** to toggle dictation (ON/OFF).
-    
+### 🗣️ Hands-Free (Wake Word)
+1.  Say **"Hey Jarvis"**.
+2.  Listen for the **Chime** and watch the Overlay turn **Green**.
+3.  Speak naturally:
+    *   *"Start dictation"* -> Switches to continuous typing mode.
+    *   *"Open Spotify"* -> Launches the app.
+    *   *"Play some music"* -> Agent interprets and acts.
+
+### ⌨️ Hotkeys (Faster)
+*   **F9**: Toggle **Dictation Mode**. (Green Indicator)
+    *   Types everything you say into the active window.
+    *   Press F9 again to stop.
+*   **F10**: Toggle **Agent Mode**. (Blue Indicator)
+    *   Say a command ("Search web for...").
+    *   The Agent executes it and replies visually.
+
 ## 🔧 Troubleshooting
 
-If it says "ON" but doesn't type anything:
-1.  Check the logs:
+If the bar doesn't appear or commands aren't working:
+1.  **Check Status**:
+    ```bash
+    systemctl --user status dictator
+    ```
+2.  **View Logs**:
     ```bash
     journalctl --user -u dictator -f
     ```
-2.  If you see "Audio Level Peak: 0.00" or silence errors, you likely picked the wrong device.
-3.  **Fix**: Run `./install.sh` again and choose a different device index (e.g., `pulse` or `default`).
+3.  **Manual Run**: Stop the service and run manually to see errors:
+    ```bash
+    systemctl --user stop dictator
+    ./dictator.sh
+    ```
 
 ## 🗑️ Uninstalling
 
-To remove the background service:
 ```bash
 systemctl --user stop dictator
 systemctl --user disable dictator
 rm ~/.config/systemd/user/dictator.service
+# Then delete the project folder
 ```
-Then delete the folder.

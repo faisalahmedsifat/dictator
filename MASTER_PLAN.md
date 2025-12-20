@@ -18,36 +18,32 @@ The application runs a low-latency loop monitoring audio for specific trigger ph
 
 ## 3. Implementation Roadmap
 
-### Phase 1: Robust Wake Word (Current Focus)
+### Phase 1: Robust Wake Word (Complete)
 **Goal:** Hands-free activation with minimal CPU usage (~1-2%).
-- **Engine:** `openWakeWord`
-- **Model:** Pre-trained `hey_jarvis`.
-- **Logic:**
-    - Listen on Mic (Ring Buffer).
-    - If "Hey Jarvis" detected -> Play Chime.
-    - Start recording for Intent Classification.
+- **Engine:** `openWakeWord` (hey_jarvis_v0.1.onnx).
+- **Status:** ✅ Implemented.
 
-### Phase 2: Dual-Path Routing & Differentiated Modes
+### Phase 2: Dual-Path Routing (Complete)
 **Goal:** Distinguish clearly between wanting to continuously dictate vs. wanting a quick answer.
-- **Logic:**
-    - **Wake Word ("Hey Jarvis")**:
-        - Listens for "Start dictation" -> **Enter Continuous Dictation Mode**.
-        - Else -> **Agent Mode** (Process single command).
-    - **Global Hotkey**:
-        - Immediately activates **Dictation Mode** while held (or toggled).
+- **Status:** ✅ Implemented (Unified Audio Stream State Machine).
 
-### Phase 3: The Local Agent
+### Phase 3: The Local Agent (Complete)
 **Goal:** Smart reasoning on < 4GB RAM.
-- **Engine:** `llama.cpp` (via `llama-cpp-python`).
-- **Model:** `Qwen 2.5 1.5B` (Best for Tools).
-- **Architecture:** Native Tool Calling with Grammar Sampling (No extra frameworks).
-- **Capabilities**:
-    - **Conversation**: Chat with the user.
-    - **Tools**:
-        - **Web**: Search Google/YouTube.
-        - **System**: Real Volume/Brightness Control (`pulsectl`).
-        - **Launcher**: Open Apps (`subprocess`).
-        - **Input**: Simulate Keystrokes (`pynput`).
+- **Engine:** `llama.cpp` (Qwen 2.5 1.5B).
+- **Status:** ✅ Implemented with Native Tools:
+    - **Web**: Open Browser/Search.
+    - **System**: Volume/Brightness.
+    - **Launcher**: App launching.
+    - **Input**: Keyboard simulation.
+
+### Phase 4: Continuous Mode (Complete)
+**Goal:** Interactive "Agent Loop" for back-to-back commands.
+- **Status:** ✅ Implemented (F10 / "Start Agent").
+
+### Phase 5: Visual Interface (Complete)
+**Goal:** Floating overlay for feedback.
+- **Technology:** `tkinter`.
+- **Status:** ✅ Implemented (Transparent Overlay).
 
 ---
 
@@ -56,7 +52,7 @@ The application runs a low-latency loop monitoring audio for specific trigger ph
 ### Installation
 One-click setup for dependencies.
 ```bash
-./install.sh  # Includes models
+./install.sh  # Downloads models, setups venv & systemd
 ```
 
 ### Daily Usage

@@ -312,13 +312,32 @@ def process_command(user_text):
             
             # 3. Parse and Unpack
             # We accept the Qwen format which is often double-bracketed {{...}}
-            # If standard json.loads fails, strict unwrap
             try:
+                # Try direct load first
                 tool_data = json.loads(raw_extracted)
             except:
-                if raw_extracted.startswith("{{") and raw_extracted.endswith("}}"):
-                     # Try stripping one layer
-                     tool_data = json.loads(raw_extracted[1:-1])
+                # Fallback: Find the widest outer braces, then drill down
+                # Sometimes raw_extracted has tail garbage
+                s_idx = raw_extracted.find("{")
+                e_idx = raw_extracted.rfind("}")
+                
+                if s_idx != -1 and e_idx != -1:
+                    candidate = raw_extracted[s_idx:e_idx+1]
+                    # Loop to strip layers of braces until valid
+                    # Max 3 layers to prevent infinite loops
+                    for _ in range(3):
+                        try:
+                            tool_data = json.loads(candidate)
+                            break
+                        except:
+                            # If it starts/ends with braces, strip them
+                            if candidate.startswith("{") and candidate.endswith("}"):
+                                candidate = candidate[1:-1].strip()
+                            else:
+                                raise
+                    else:
+                        # loop exhausted
+                        raise
                 else:
                     raise
 
