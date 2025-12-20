@@ -25,9 +25,14 @@ echo "------------------------------------------------"
 read -p "Enter the Device ID from the list above [default: 4]: " DEV_ID
 DEV_ID=${DEV_ID:-4}
 
-echo "[*] Test running with Device $DEV_ID for 5 seconds..."
+# Resolve ID to Name for persistence
+echo "[*] Resolving Device ID $DEV_ID to Name..."
+DEV_NAME=$($PYTHON_CMD -c "import sounddevice as sd; print(sd.query_devices(int($DEV_ID))['name'])")
+echo "    Device Name: '$DEV_NAME'"
+
+echo "[*] Test running with Device '$DEV_NAME' for 5 seconds..."
 # Run momentarily to confirm it doesn't crash
-timeout 5s ./dictator.sh --device $DEV_ID || true
+timeout 5s ./dictator.sh --device "$DEV_NAME" || true
 echo "    If that looked good (no errors), we proceed."
 
 # 2. Capture Environment
@@ -69,7 +74,7 @@ fi
 
 cat >> "$SERVICE_FILE" <<EOF
 WorkingDirectory=$(pwd)
-ExecStart=$(pwd)/dictator.sh --device $DEV_ID
+ExecStart=$(pwd)/dictator.sh --device "$DEV_NAME"
 Restart=always
 RestartSec=3
 

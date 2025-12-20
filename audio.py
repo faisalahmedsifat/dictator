@@ -13,7 +13,37 @@ def start_stream(device_index=None):
     global current_native_rate
     
     # Query device native rate
+    # Query device native rate
     if device_index is not None:
+        # Resolve string name to index if needed
+        if isinstance(device_index, str):
+            found_index = None
+            try:
+                # Try to parse as int first (legacy support)
+                found_index = int(device_index)
+                device_index = found_index
+            except ValueError:
+                # Search by name
+                devices = sd.query_devices()
+                target = device_index
+                # Exact match first
+                for i, dev in enumerate(devices):
+                    if dev['name'] == target and dev['max_input_channels'] > 0:
+                        found_index = i
+                        break
+                # Partial match second
+                if found_index is None:
+                    for i, dev in enumerate(devices):
+                        if target in dev['name'] and dev['max_input_channels'] > 0:
+                            found_index = i
+                            break
+                
+                if found_index is not None:
+                    print(f"Resolved device '{device_index}' to index {found_index} ({devices[found_index]['name']})")
+                    device_index = found_index
+                else:
+                    raise ValueError(f"Could not find input device matching: {device_index}")
+
         info = sd.query_devices(device_index, 'input')
         native_rate = info['default_samplerate']
     else:

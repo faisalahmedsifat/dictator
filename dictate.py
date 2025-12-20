@@ -39,7 +39,7 @@ def main():
     global committed, active
     
     parser = argparse.ArgumentParser(description="Dictator: Global Audio Typing Tool")
-    parser.add_argument("--device", type=int, default=None, help="Audio input device index")
+    parser.add_argument("--device", type=str, default=None, help="Audio input device index or name")
     parser.add_argument("--model", type=str, default="base.en", help="Whisper model size (tiny.en, base.en, small.en, medium.en)")
     parser.add_argument("--no-partial", action="store_true", help="Disable partial live updates (types only final sentences)")
     args = parser.parse_args()
