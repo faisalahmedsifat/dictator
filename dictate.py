@@ -4,7 +4,7 @@ from src.inject import type_text, backspace
 from src.wake_listener import WakeWordListener
 from src.agent import process_command
 from src.ui import monitor
-from pynput import keyboard
+from pynput.keyboard import GlobalHotKeys
 import time
 import sys
 import re
@@ -35,43 +35,50 @@ def clean_text(text):
     text = re.sub(r'\b(\w+)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
     return text
 
-def on_key_press(key):
+def toggle_dictation():
     global current_state, manual_override
-    if key == keyboard.Key.f9:
-        if current_state == AppState.DICTATING:
-            print("[Hotkey] Stopping Dictation...")
-            current_state = AppState.IDLE
-            manual_override = False
-            notify("Dictation Stopped (Idle)")
-            play_sound("exit")
-            force_reset()
-        else:
-            print("[Hotkey] Forcing Dictation Mode...")
-            current_state = AppState.DICTATING
-            manual_override = True
-            notify("Dictation Started")
-            manual_override = True
-            notify("Dictation Started")
-            play_sound("success") # Use default output
-    elif key == keyboard.Key.f10:
-        if current_state == AppState.AGENT_LOOP:
-            print("[Hotkey] Stopping Agent Mode...")
-            current_state = AppState.IDLE
-            manual_override = False
-            notify("Agent Mode Stopped")
-            monitor.update_status("idle")
-            monitor.update_text("Agent Paused")
-            play_sound("exit")
-            force_reset()
-        else:
-            print("[Hotkey] Forcing Agent Mode...")
-            current_state = AppState.AGENT_LOOP
-            manual_override = True
-            notify("Agent Mode Started")
-            monitor.update_status("agent")
-            monitor.update_text("Agent Listening...")
-            play_sound("success")
-            force_reset()
+    if current_state == AppState.DICTATING:
+        print("[Hotkey] Stopping Dictation...")
+        current_state = AppState.IDLE
+        manual_override = False
+        notify("Dictation Stopped (Idle)")
+        play_sound("exit")
+        force_reset()
+    else:
+        print("[Hotkey] Forcing Dictation Mode...")
+        current_state = AppState.DICTATING
+        manual_override = True
+        notify("Dictation Started")
+        play_sound("success")
+
+def toggle_agent():
+    global current_state, manual_override
+    if current_state == AppState.AGENT_LOOP:
+        print("[Hotkey] Stopping Agent Mode...")
+        current_state = AppState.IDLE
+        manual_override = False
+        notify("Agent Mode Stopped")
+        monitor.update_status("idle")
+        monitor.update_text("Agent Paused")
+        play_sound("exit")
+        force_reset()
+    else:
+        print("[Hotkey] Forcing Agent Mode...")
+        current_state = AppState.AGENT_LOOP
+        manual_override = True
+        notify("Agent Mode Started")
+        monitor.update_status("agent")
+        monitor.update_text("Agent Listening...")
+        play_sound("success")
+        force_reset()
+
+def toggle_ui():
+    print("[Hotkey] Toggling UI Visibility...")
+    monitor.toggle()
+
+def toggle_log():
+    print("[Hotkey] Toggling Log Panel...")
+    monitor.toggle_log()
 
 def main():
     global current_state, exit_flag, committed
@@ -87,7 +94,15 @@ def main():
     
     # Start Hotkey Listener
     # Start Hotkey Listener
-    k_listener = keyboard.Listener(on_press=on_key_press)
+    # Start Hotkey Listener
+    hotkey_map = {
+        '<f9>': toggle_dictation,
+        '<f10>': toggle_agent,
+        '<ctrl>+<space>': toggle_ui,
+        '<ctrl>+<alt>+<space>': toggle_log
+    }
+    
+    k_listener = GlobalHotKeys(hotkey_map)
     k_listener.start()
     
     # Start UI
@@ -190,6 +205,7 @@ def main():
                         elif cmd:
                             print(f"Intent: Agent (Command='{cmd}')")
                             notify(f"Agent: {cmd:.20}...")
+                            monitor.update_log(f"User: {cmd}")
                             
                             # Execute Agent
                             play_sound("success") # Acknowledge
@@ -256,6 +272,7 @@ def main():
                                  if not cmd: continue
                                  
                                  print(f"[Agent Loop] Command: '{cmd}'")
+                                 monitor.update_log(f"User: {cmd}")
                                  
                                  # Exit Check
                                  if cmd in ["stop", "exit", "quit", "go to sleep", "close agent"]:

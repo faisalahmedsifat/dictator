@@ -253,6 +253,7 @@ def handle_simulate_keys(args):
 # Lazy import to avoid circular dep or heavy load on init
 def handle_ask_reactor(args):
     from src.context import infer_project_context
+    from src.ui import monitor
 
     prompt = args.get("prompt", "")
     project_dir = args.get("project_dir", None)
@@ -270,6 +271,7 @@ def handle_ask_reactor(args):
     if project_dir:
         msg += f" (in {project_dir})"
     print(msg)
+    monitor.update_log(f"Reactor: {prompt}")
     
     # Check if reactor exists
     if not shutil.which("reactor"):
@@ -282,18 +284,33 @@ def handle_ask_reactor(args):
         cmd = ["reactor", "-p", prompt]
 
     try:
-        # Run headlessly
-        # We use a timeout to prevent hanging forever
-        # Pass cwd if provided
-        result = subprocess.check_output(cmd, cwd=project_dir, text=True, timeout=120)
+        # Run with Popen for streaming
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=project_dir,
+            text=True,
+            bufsize=1
+        )
         
-        return f"Reactor Output:\n{result.strip()}"
+        full_output = []
+        for line in iter(process.stdout.readline, ''):
+            clean_line = line.strip()
+            if clean_line:
+                print(f"[Reactor] {clean_line}")
+                monitor.update_log(clean_line)
+                full_output.append(clean_line)
+        
+        process.wait()
+        
+        if process.returncode != 0:
+            return f"Reactor failed with code {process.returncode}"
+        
+        return f"Reactor Output:\n" + "\n".join(full_output)
+        
     except FileNotFoundError:
         return f"Error: Project directory '{project_dir}' not found."
-    except subprocess.TimeoutExpired:
-        return "Reactor timed out (took > 120s)."
-    except subprocess.CalledProcessError as e:
-        return f"Reactor failed with error: {e.output}"
     except Exception as e:
         return f"Failed to call Reactor: {e}"
 
