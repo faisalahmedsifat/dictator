@@ -1,60 +1,88 @@
 #!/bin/bash
 set -e
 
-echo "🎤 Dictator Installer (Manual Calibration Mode)"
-echo "=============================================="
+echo "🎤 Dictator Installer (Automated)"
+echo "================================"
 
-# 0. Cleanup
-echo "[*] Cleaning up previous installation..."
+# --- Configuration ---
+MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+MODEL_DIR="src/models"
+MODEL_FILE="$MODEL_DIR/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
+# 1. System Dependencies Check
+echo "[*] Checking System Dependencies..."
+MISSING_DEPS=""
+if ! command -v ffmpeg &> /dev/null; then MISSING_DEPS+=" ffmpeg"; fi
+# Simple check for portaudio header or lib might be hard, assume user handles it or pip fails
+# On Debian/Ubuntu: portaudio19-dev is needed for PyAudio (if used) or sounddevice
+
+if [ ! -z "$MISSING_DEPS" ]; then
+    echo "⚠️  Warning: Missing tools:$MISSING_DEPS"
+    echo "   Please install them (e.g., 'sudo apt install$MISSING_DEPS portaudio19-dev')"
+    read -p "   Press Enter to continue anyway (or Ctrl+C to abort)..."
+fi
+
+# 2. Python Environment
+echo "[*] Setting up Python Environment..."
+if [ ! -d "dictate" ]; then
+    python3 -m venv dictate
+    echo "   Created virtual environment 'dictate'."
+else
+    echo "   Using existing virtual environment 'dictate'."
+fi
+
+# Upgrade pip and install requirements
+./dictate/bin/pip install --upgrade pip > /dev/null
+./dictate/bin/pip install -r requirements.txt
+
+# 3. Model Downloads
+echo "[*] Checking Models..."
+mkdir -p "$MODEL_DIR"
+
+if [ ! -f "$MODEL_FILE" ]; then
+    echo "   Downloading Qwen 2.5 1.5B (Active Agent Model)..."
+    wget -O "$MODEL_FILE" "$MODEL_URL" --show-progress
+else
+    echo "   Agent Model (Qwen) present."
+fi
+
+# Wake Word Model
+WAKE_WORD_FILE="$MODEL_DIR/hey_jarvis_v0.1.onnx"
+
+if [ ! -f "$WAKE_WORD_FILE" ]; then
+    echo "   Extracting Wake Word Model (Hey Jarvis) from package..."
+    ./dictate/bin/python -c 'import openwakeword, shutil, os, sys; target=sys.argv[1]; m = next((p for p in openwakeword.get_pretrained_model_paths() if "hey_jarvis" in p), None); shutil.copy(m, target) if m else print("Error: Model not found")' "$WAKE_WORD_FILE"
+else
+    echo "   Wake Word Model (Hey Jarvis) present."
+fi
+
+# 4. Service Setup (Existing Logic)
+echo "[*] Configuring Background Service..."
+
+# Cleanup old
 systemctl --user stop dictator 2>/dev/null || true
 systemctl --user disable dictator 2>/dev/null || true
 rm "$HOME/.config/systemd/user/dictator.service" 2>/dev/null || true
 systemctl --user daemon-reload
 
-# 1. Verification
-echo "[*] Verifying manual configuration..."
+# Device selection
 echo "------------------------------------------------"
-# Determine Python path safely (venv or system)
-PYTHON_CMD="./dictate/bin/python"
-if [ ! -f "$PYTHON_CMD" ]; then
-    PYTHON_CMD="python"
-fi
-
-$PYTHON_CMD src/list_devices.py
+./dictate/bin/python src/list_devices.py
 echo "------------------------------------------------"
 read -p "Enter the Device ID from the list above [default: 4]: " DEV_ID
 DEV_ID=${DEV_ID:-4}
 
-# Resolve ID to Name for persistence
-echo "[*] Resolving Device ID $DEV_ID to Name..."
-DEV_NAME=$($PYTHON_CMD -c "import sounddevice as sd; print(sd.query_devices(int($DEV_ID))['name'])")
-echo "    Device Name: '$DEV_NAME'"
+DEV_NAME=$(./dictate/bin/python -c "import sounddevice as sd; print(sd.query_devices(int($DEV_ID))['name'])")
+echo "    Selected Device: '$DEV_NAME'"
 
-echo "[*] Test running with Device '$DEV_NAME' for 5 seconds..."
-# Run momentarily to confirm it doesn't crash
-timeout 5s ./dictator.sh --device "$DEV_NAME" || true
-echo "    If that looked good (no errors), we proceed."
-
-# 2. Capture Environment
-echo "[*] Capturing environment for background service..."
-# We surely need DISPLAY and XAUTHORITY.
-# We might also need PULSE variables if using ALSA via Pulse.
-X_DISPLAY=${DISPLAY:-:0}
-X_AUTH=${XAUTHORITY:-$HOME/.Xauthority}
-PULSE_SERV=${PULSE_SERVER:-}
-
-echo "    DISPLAY: $X_DISPLAY"
-echo "    XAUTHORITY: $X_AUTH"
-if [ ! -z "$PULSE_SERV" ]; then
-    echo "    PULSE_SERVER: $PULSE_SERV"
-fi
-
-# 3. Create Service File
-# We embed the device ID directly into the service command to be sure.
+echo "[*] Capturing Environment..."
 SERVICE_FILE="$HOME/.config/systemd/user/dictator.service"
 mkdir -p $(dirname "$SERVICE_FILE")
 
-echo "[*] Generating $SERVICE_FILE..."
+# Capture basic env
+X_DISPLAY=${DISPLAY:-:0}
+X_AUTH=${XAUTHORITY:-$HOME/.Xauthority}
+PULSE_SERV=${PULSE_SERVER:-}
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -82,12 +110,11 @@ RestartSec=3
 WantedBy=default.target
 EOF
 
-# 4. Enable and Start
-echo "[*] Reloading systemd..."
+# Enable
 systemctl --user daemon-reload
 systemctl --user enable dictator
 systemctl --user restart dictator
 
-echo "✅ Installation Complete."
-echo "   Service is running with Device ID: $DEV_ID"
-echo "   Check logs: journalctl --user -u dictator -f"
+echo "✅ Installation Complete!"
+echo "   Service is running."
+echo "   Start Agent Mode: Say 'Hey Jarvis, start agent'"

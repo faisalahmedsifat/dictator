@@ -39,12 +39,15 @@ The application runs a low-latency loop monitoring audio for specific trigger ph
 ### Phase 3: The Local Agent
 **Goal:** Smart reasoning on < 4GB RAM.
 - **Engine:** `llama.cpp` (via `llama-cpp-python`).
-- **Model:** `Qwen 2.5 1.5B` (Best for Tools) or `DeepSeek-R1-Distill-Qwen-1.5B` (Max Reasoning).
-- **Alternative:** `Gemma 3 1B` (Great Chat, weaker tools).
-- **Framework:** `LangGraph` for state management.
+- **Model:** `Qwen 2.5 1.5B` (Best for Tools).
+- **Architecture:** Native Tool Calling with Grammar Sampling (No extra frameworks).
 - **Capabilities**:
     - **Conversation**: Chat with the user.
-    - **Function Calling**: Use tools defined in Python (e.g., `get_date`, `open_browser`).
+    - **Tools**:
+        - **Web**: Search Google/YouTube.
+        - **System**: Real Volume/Brightness Control (`pulsectl`).
+        - **Launcher**: Open Apps (`subprocess`).
+        - **Input**: Simulate Keystrokes (`pynput`).
 
 ---
 
@@ -53,14 +56,14 @@ The application runs a low-latency loop monitoring audio for specific trigger ph
 ### Installation
 One-click setup for dependencies.
 ```bash
-./install.sh --agent  # Will download models automatically
+./install.sh  # Includes models
 ```
 
 ### Daily Usage
 1.  **Start**: Run `dictator` (Background service).
 2.  **Activating**:
     - *User*: "Hey Jarvis, start dictation." -> *System*: "Ding!" -> *User*: "Hello world" -> *System*: Types "Hello world".
-    - *User*: "Hey Jarvis, what time is it?" -> *System*: "Ding!" ... "It is 2:30 PM."
+    - *User*: "Hey Jarvis, set volume to 50%." -> *System*: "Ding!" ... "Volume set to 50%."
 
 ---
 
@@ -70,9 +73,9 @@ One-click setup for dependencies.
 | :--- | :--- | :--- |
 | **Wake Word** | `openWakeWord` | Pre-trained, Offline, Fast |
 | **STT (Dictation)** | `faster-whisper` | Accurate, Real-time |
-| **LLM (Agent)** | `llama.cpp` | Max performance on old CPUs |
-| **Orchestrator** | `LangGraph` | Strong logic/loops for Agents |
+| **LLM (Agent)** | `llama-cpp-python` | Max performance, Native Tool Calling |
+| **Orchestrator** | Python Native | Zero-latency, Minimal footprint |
 | **Audio I/O** | `sounddevice` | Reliable cross-platform audio |
 
 ## Next Step
-- Proceed with **Phase 1 Implementation**: Integrating `openWakeWord` listener into `dictate.py`.
+- **Enhancement**: Explore clipboard intelligence and detailed system stats.

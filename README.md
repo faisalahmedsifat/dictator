@@ -5,6 +5,11 @@ Dictator runs in the background and types what you speak into *any* application 
 
 ## ✨ Features
 *   **Global Hotkey**: Toggle dictation anywhere with `F9`.
+*   **Smart Agent**: Say **"Hey Jarvis"** to control your PC.
+    *   Open Apps ("Open VS Code")
+    *   Search Web ("Search youtube for cats")
+    *   System Control ("Set volume to 50%")
+    *   Type for you ("Press Alt plus Enter")
 *   **Local & Private**: Runs entirely on your machine. No cloud API keys.
 *   **Fast**: Optimized for real-time usage with partial results.
 *   **Smart**: Cleans up repeated words and handles punctuation automatically.
@@ -29,12 +34,20 @@ Dictator runs in the background and types what you speak into *any* application 
 3.  **That's it!** The service is now running.
 
 ## 📖 Usage
+    
+### 🗣️ Voice Commands (Hands-Free)
+1.  Say **"Hey Jarvis"**. You will hear a *Wake Chime*.
+2.  Speak your command immediately:
+    *   *"Start dictation"* -> Beeps and starts typing whatever you say next.
+    *   *"Open Google Chrome"* -> Launches Chrome.
+    *   *"Set volume to 80%"* -> Adjusts volume.
+    *   *"Press Control C"* -> Simulates the keypress.
+3.  The agent will speak/notify back.
 
-1.  Click into any text field (Browser, Terminal, Editor, etc.).
-2.  Press **F9** to start dictating. You will see a notification: **Dictation: ON 🔴**.
-3.  Speak naturally.
-4.  Press **F9** again to stop. Notification: **Dictation: OFF ⚪**.
-
+### ⌨️ Manual Dictation
+1.  Click into any text field.
+2.  Press **F9** to toggle dictation (ON/OFF).
+    
 ## 🔧 Troubleshooting
 
 If it says "ON" but doesn't type anything:

@@ -2,6 +2,7 @@ from src.audio import start_stream, play_sound, fetch_audio
 from src.transcriber import transcribe_loop, load_model, force_reset
 from src.inject import type_text, backspace
 from src.wake_listener import WakeWordListener
+from src.agent import process_command
 from pynput import keyboard
 import time
 import sys
@@ -16,6 +17,7 @@ class AppState:
     IDLE = 0
     ROUTING = 1
     DICTATING = 2
+    AGENT_LOOP = 3
 
 current_state = AppState.IDLE
 exit_flag = False
@@ -50,6 +52,21 @@ def on_key_press(key):
             manual_override = True
             notify("Dictation Started")
             play_sound("success") # Use default output
+    elif key == keyboard.Key.f10:
+        if current_state == AppState.AGENT_LOOP:
+            print("[Hotkey] Stopping Agent Mode...")
+            current_state = AppState.IDLE
+            manual_override = False
+            notify("Agent Mode Stopped")
+            play_sound("exit")
+            force_reset()
+        else:
+            print("[Hotkey] Forcing Agent Mode...")
+            current_state = AppState.AGENT_LOOP
+            manual_override = True
+            notify("Agent Mode Started")
+            play_sound("success")
+            force_reset()
 
 def main():
     global current_state, exit_flag, committed
@@ -141,10 +158,25 @@ def main():
                             notify("Starting Dictation")
                             play_sound("success")
                             current_state = AppState.DICTATING
+                            force_reset() # Prevent "start typing" from leaking into dictation
+                        elif any(k in cmd for k in ["start agent", "co-pilot", "copilot", "lets talk", "let's talk"]):
+                            print("Intent: Continuous Agent")
+                            notify("Agent Mode: Listening...")
+                            play_sound("success")
+                            current_state = AppState.AGENT_LOOP
+                            force_reset()
                         elif cmd:
                             print(f"Intent: Agent (Command='{cmd}')")
                             notify(f"Agent: {cmd:.20}...")
-                            # TODO: Agent logic
+                            
+                            # Execute Agent
+                            play_sound("success") # Acknowledge
+                            response = process_command(cmd)
+                            
+                            print(f"Agent Response: {response}")
+                            notify(f"Agent: {response}")
+                            # TODO: TTS if response is short?
+                            
                             current_state = AppState.IDLE
                             force_reset()
                         else:
@@ -179,6 +211,38 @@ def main():
                         
                         # Loop exited
                         committed = ""
+
+                    elif current_state == AppState.AGENT_LOOP:
+                        print("State: AGENT_LOOP")
+                        
+                        for result in transcribe_loop(stream=stream_iterator):
+                             if current_state != AppState.AGENT_LOOP:
+                                 break
+                             
+                             text, is_final = result
+                             if text is None: continue
+                             
+                             if is_final:
+                                 cmd = text.lower().strip()
+                                 if not cmd: continue
+                                 
+                                 print(f"[Agent Loop] Command: '{cmd}'")
+                                 
+                                 # Exit Check
+                                 if cmd in ["stop", "exit", "quit", "go to sleep", "close agent"]:
+                                     print("State: IDLE")
+                                     notify("Agent Sleeping")
+                                     play_sound("exit") # Down tone
+                                     current_state = AppState.IDLE
+                                     force_reset()
+                                     break
+                                 
+                                 # Execute
+                                 notify(f"Processing: {cmd}")
+                                 response = process_command(cmd)
+                                 print(f"[Agent Loop] Output: {response}")
+                                 play_sound("success") # Feedback for completion
+                                 force_reset() # Clear buffer for next command
 
                 except StopIteration:
                     print("Audio Stream Ended Unexpectedly.")

@@ -6,3 +6,5 @@ pynput
 webrtcvad
 openwakeword
 onnxruntime
+pulsectl
+psutil

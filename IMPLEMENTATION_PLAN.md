@@ -45,3 +45,18 @@ Establish a reliable, hands-free entry point for the assistant that distinguishe
     - Say "Hey Jarvis" -> Verify Chime + Log "Agent Mode Ready".
     - Say "Hey Jarvis, start dictation" -> Verify Chime + Log "Dictation Mode Started".
 3.  **Resource Check**: Monitor `htop` to ensure CPU usage is < 5% while listening.
+
+## Phase 3: The Smart Agent
+
+**Technology Stack:**
+- **Engine:** `llama-cpp-python` (Direct Integration).
+- **Model:** `Qwen 2.5 1.5B Instruct` (GGUF).
+- **Pattern:** Native Tool Calling with Grammar Sampling.
+
+**Workflow:**
+1.  **Input:** Router detects "Agent Command".
+2.  **Inference:** Call `create_chat_completion` with tools.
+3.  **Execution:** Parse JSON -> Execute Python Function.
+4.  **Response:** Summarize/Display result.
+
+**Tools:** Search, System Control, App Launcher.
