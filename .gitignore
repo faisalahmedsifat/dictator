@@ -1,5 +1,21 @@
-__pycache__/
+# Virtual environments
+.venv/
 dictate/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Models (downloaded at install)
+src/models/
+
+# Environment
 .env
+
+# Debug artifacts
 debug_thoughts.log
 todo_state.json

@@ -1,0 +1,13 @@
+.venv/
+dictate/
+__pycache__/
+src/__pycache__/
+src/models/
+*.pyc
+.git/
+.env
+debug_thoughts.log
+todo_state.json
+ARCH.MD
+MASTER_PLAN.md
+IMPLEMENTATION_PLAN.md

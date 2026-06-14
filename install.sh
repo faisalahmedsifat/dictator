@@ -1,80 +1,129 @@
 #!/bin/bash
 set -e
 
-echo "🎤 Dictator Installer (Manual Calibration Mode)"
-echo "=============================================="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# 0. Cleanup
-echo "[*] Cleaning up previous installation..."
+echo "==================================="
+echo " Dictator Installer"
+echo "==================================="
+
+# --- Configuration ---
+MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+MODEL_DIR="src/models"
+MODEL_FILE="$MODEL_DIR/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+VENV_DIR=".venv"
+
+# --- 1. System Dependencies ---
+echo ""
+echo "[1/5] Checking system dependencies..."
+
+MISSING=""
+for cmd in ffmpeg xdotool; do
+    if ! command -v "$cmd" &>/dev/null; then
+        MISSING+=" $cmd"
+    fi
+done
+
+if [ -n "$MISSING" ]; then
+    echo "  Missing:$MISSING"
+    echo "  Install with: sudo apt install$MISSING portaudio19-dev libportaudio2"
+    read -p "  Press Enter to continue or Ctrl+C to abort..."
+fi
+
+# --- 2. Python Environment ---
+echo ""
+echo "[2/5] Setting up Python environment..."
+
+if [ ! -d "$VENV_DIR" ]; then
+    python3 -m venv "$VENV_DIR"
+    echo "  Created virtual environment."
+else
+    echo "  Using existing virtual environment."
+fi
+
+"$VENV_DIR/bin/pip" install --upgrade pip -q
+"$VENV_DIR/bin/pip" install -r requirements.txt
+# openwakeword requires tflite-runtime which doesn't support Python 3.13+
+# We only use ONNX models, so install without deps (onnxruntime already installed above)
+"$VENV_DIR/bin/pip" install openwakeword --no-deps
+
+# --- 3. Download Models ---
+echo ""
+echo "[3/5] Downloading models..."
+mkdir -p "$MODEL_DIR"
+
+if [ ! -f "$MODEL_FILE" ]; then
+    echo "  Downloading Qwen 2.5 1.5B (~1.2GB)..."
+    wget -q --show-progress -O "$MODEL_FILE" "$MODEL_URL"
+else
+    echo "  Agent model present."
+fi
+
+WAKE_WORD_FILE="$MODEL_DIR/hey_jarvis_v0.1.onnx"
+if [ ! -f "$WAKE_WORD_FILE" ]; then
+    echo "  Extracting wake word model..."
+    "$VENV_DIR/bin/python" -c "
+import openwakeword, shutil, sys
+paths = openwakeword.get_pretrained_model_paths()
+m = next((p for p in paths if 'hey_jarvis' in p), None)
+if m:
+    shutil.copy(m, sys.argv[1])
+    print('  Done.')
+else:
+    print('  Warning: hey_jarvis model not found in openwakeword package.')
+" "$WAKE_WORD_FILE"
+else
+    echo "  Wake word model present."
+fi
+
+# Pre-download Whisper model
+echo "  Caching Whisper base.en model..."
+"$VENV_DIR/bin/python" -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8')" 2>/dev/null
+
+# --- 4. Select Microphone ---
+echo ""
+echo "[4/5] Selecting microphone..."
+echo "  Available input devices:"
+echo "  ---"
+"$VENV_DIR/bin/python" src/list_devices.py
+echo "  ---"
+read -p "  Enter device ID [default: system default]: " DEV_ID
+
+DEVICE_ARG=""
+if [ -n "$DEV_ID" ]; then
+    DEV_NAME=$("$VENV_DIR/bin/python" -c "import sounddevice as sd; print(sd.query_devices(int($DEV_ID))['name'])")
+    echo "  Selected: '$DEV_NAME'"
+    DEVICE_ARG="--device \"$DEV_NAME\""
+else
+    echo "  Using system default."
+fi
+
+# --- 5. Systemd Service ---
+echo ""
+echo "[5/5] Setting up systemd service..."
+
 systemctl --user stop dictator 2>/dev/null || true
 systemctl --user disable dictator 2>/dev/null || true
-rm "$HOME/.config/systemd/user/dictator.service" 2>/dev/null || true
-systemctl --user daemon-reload
 
-# 1. Verification
-echo "[*] Verifying manual configuration..."
-echo "------------------------------------------------"
-# Determine Python path safely (venv or system)
-PYTHON_CMD="./dictate/bin/python"
-if [ ! -f "$PYTHON_CMD" ]; then
-    PYTHON_CMD="python"
-fi
-
-$PYTHON_CMD list_devices.py
-echo "------------------------------------------------"
-read -p "Enter the Device ID from the list above [default: 4]: " DEV_ID
-DEV_ID=${DEV_ID:-4}
-
-# Resolve ID to Name for persistence
-echo "[*] Resolving Device ID $DEV_ID to Name..."
-DEV_NAME=$($PYTHON_CMD -c "import sounddevice as sd; print(sd.query_devices(int($DEV_ID))['name'])")
-echo "    Device Name: '$DEV_NAME'"
-
-echo "[*] Test running with Device '$DEV_NAME' for 5 seconds..."
-# Run momentarily to confirm it doesn't crash
-timeout 5s ./dictator.sh --device "$DEV_NAME" || true
-echo "    If that looked good (no errors), we proceed."
-
-# 2. Capture Environment
-echo "[*] Capturing environment for background service..."
-# We surely need DISPLAY and XAUTHORITY.
-# We might also need PULSE variables if using ALSA via Pulse.
-X_DISPLAY=${DISPLAY:-:0}
-X_AUTH=${XAUTHORITY:-$HOME/.Xauthority}
-PULSE_SERV=${PULSE_SERVER:-}
-
-echo "    DISPLAY: $X_DISPLAY"
-echo "    XAUTHORITY: $X_AUTH"
-if [ ! -z "$PULSE_SERV" ]; then
-    echo "    PULSE_SERVER: $PULSE_SERV"
-fi
-
-# 3. Create Service File
-# We embed the device ID directly into the service command to be sure.
 SERVICE_FILE="$HOME/.config/systemd/user/dictator.service"
-mkdir -p $(dirname "$SERVICE_FILE")
+mkdir -p "$(dirname "$SERVICE_FILE")"
 
-echo "[*] Generating $SERVICE_FILE..."
+X_DISPLAY="${DISPLAY:-:0}"
+X_AUTH="${XAUTHORITY:-$HOME/.Xauthority}"
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=Dictator - Global Voice Typing Service
-After=network.target sound.target
+Description=Dictator - Voice Assistant
+After=graphical-session.target sound.target
 
 [Service]
 Type=simple
 Environment=PYTHONUNBUFFERED=1
 Environment=DISPLAY=$X_DISPLAY
 Environment=XAUTHORITY=$X_AUTH
-EOF
-
-if [ ! -z "$PULSE_SERV" ]; then
-    echo "Environment=PULSE_SERVER=$PULSE_SERV" >> "$SERVICE_FILE"
-fi
-
-cat >> "$SERVICE_FILE" <<EOF
-WorkingDirectory=$(pwd)
-ExecStart=$(pwd)/dictator.sh --device "$DEV_NAME"
+WorkingDirectory=$SCRIPT_DIR
+ExecStart=$SCRIPT_DIR/dictator.sh $DEVICE_ARG
 Restart=always
 RestartSec=3
 
@@ -82,12 +131,19 @@ RestartSec=3
 WantedBy=default.target
 EOF
 
-# 4. Enable and Start
-echo "[*] Reloading systemd..."
 systemctl --user daemon-reload
 systemctl --user enable dictator
 systemctl --user restart dictator
 
-echo "✅ Installation Complete."
-echo "   Service is running with Device ID: $DEV_ID"
-echo "   Check logs: journalctl --user -u dictator -f"
+echo ""
+echo "==================================="
+echo " Installation Complete!"
+echo "==================================="
+echo ""
+echo " Service status:  systemctl --user status dictator"
+echo " View logs:       journalctl --user -u dictator -f"
+echo " Manual run:      ./dictator.sh $DEVICE_ARG"
+echo ""
+echo " Usage:"
+echo "   Say 'Hey Jarvis' or press F9 (dictate) / F10 (agent)"
+echo ""

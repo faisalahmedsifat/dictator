@@ -1,9 +1,18 @@
 #!/bin/bash
+# Launcher script for Dictator voice assistant.
+# This script activates the venv and runs the main entry point.
+# Paths are resolved relative to the script's location.
 
-# Activate the correct virtual environment
-source "/home/faisal/Workspace/Dev/Personal/dictator/dictate/bin/activate"
-cd "/home/faisal/Workspace/Dev/Personal/dictator"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$SCRIPT_DIR/.venv"
 
-# Use the device ID provided in the arguments (or default to 4 if that's the known working one)
-# We will allow passing arguments properly
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Error: Virtual environment not found at $VENV_DIR"
+    echo "Run 'make install' or './install.sh' first."
+    exit 1
+fi
+
+source "$VENV_DIR/bin/activate"
+cd "$SCRIPT_DIR"
+
 exec python -u dictate.py "$@"
