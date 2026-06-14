@@ -1,49 +1,42 @@
+from __future__ import annotations
+
+import os
+
 import numpy as np
 from openwakeword.model import Model
-import collections
 
-# Parameters
-# openWakeWord works best with ~80ms chunks (1280 samples at 16kHz)
-# But it can handle flexible sizes.
 SAMPLE_RATE = 16000
+DETECTION_THRESHOLD = 0.6
+
 
 class WakeWordListener:
-    def __init__(self, models=None):
+    def __init__(self, models: list[str] | None = None):
         if models is None:
-            import os
-            models = [os.path.join(os.path.dirname(__file__), "models", "hey_jarvis_v0.1.onnx")]
+            model_path = os.path.join(
+                os.path.dirname(__file__), "models", "hey_jarvis_v0.1.onnx"
+            )
+            models = [model_path]
 
-        print(f"Loading Wake Word Models: {models} ...")
-        self.fd_model = Model(wakeword_model_paths=models)
-        self.running = False
+        print(f"[Wake] Loading models: {models}")
+        self.model = Model(wakeword_model_paths=models)
 
-    def process_chunk(self, chunk):
+    def process_chunk(self, chunk: np.ndarray) -> str | None:
         """
-        Process a chunk of audio (float32, 16kHz).
-        Returns the detected wake word (str) or None.
+        Process a float32 16kHz audio chunk.
+        Returns detected wake word name or None.
         """
-        # Convert to int16 16khz mono
-        # openwakeword expects 16-bit PCM 
-        # chunk is float32 [-1, 1]
-        
-        # Clip to -1.0, 1.0 before casting to avoid wrap-around filtering artifacts?
         chunk = np.clip(chunk, -1.0, 1.0).flatten()
         data = (chunk * 32768).astype(np.int16)
-        
-        # Feed to model
-        # predict() accumulates internal buffer.
-        self.fd_model.predict(data)
-        
-        # Check predictions
-        detected_word = None
-        for mdl in self.fd_model.prediction_buffer.keys():
-            score = self.fd_model.prediction_buffer[mdl][-1]
-            if score > 0.6: # Threshold
-                detected_word = mdl
-                self.fd_model.reset()
-                break # Return first detected
-        
-        return detected_word
 
-    def reset(self):
-        self.fd_model.reset()
+        self.model.predict(data)
+
+        for mdl_name in self.model.prediction_buffer:
+            score = self.model.prediction_buffer[mdl_name][-1]
+            if score > DETECTION_THRESHOLD:
+                self.model.reset()
+                return mdl_name
+
+        return None
+
+    def reset(self) -> None:
+        self.model.reset()

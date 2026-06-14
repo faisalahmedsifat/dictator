@@ -1,80 +1,151 @@
-# 🎙️ Dictator
-> Global voice typing and intelligent control for Linux. Fast, private, and capable.
+# Dictator
 
-Dictator acts as your personal AI assistant. It provides a **Floating Visual Interface** to show you exactly what it's hearing and thinking. You can use it to type text anywhere or control your system (open apps, volume, web search) completely offline.
+Local, privacy-first voice assistant for Linux. Provides global voice typing and intelligent system control — completely offline.
 
-## ✨ Features
-*   **Visual Interface**: A transparent, always-on-top overlay shows live transcription and status.
-*   **Global Dictation (F9)**: Toggle high-speed voice typing anywhere.
-*   **Smart Agent (F10 / "Hey Jarvis")**: Use the Qwen AI model to control your PC.
-    *   **Open Apps**: "Open Firefox", "Launch VS Code"
-    *   **Web Search**: "Search YouTube for tech news", "Open Google"
-    *   **System Control**: "Set volume to 50%", "Mute"
-    *   **Keyboard Control**: "Press Alt+F4", "Type 'Hello' for me"
-*   **Local & Private**: Powered by **Whisper** (Speech) and **Qwen** (Reasoning). No cloud API keys.
-*   **Visual Status**:
-    *   ⚪ **Gray**: Idle
-    *   🟢 **Green**: Dictating / Listening
-    *   🔵 **Blue**: Agent Processing
+## Features
 
-## 🚀 Installation
+- **Global Dictation** — speak and text appears in any active window with live partial updates
+- **Smart Agent** — natural language commands: open apps, search the web, control volume, simulate keys
+- **Wake Word** — say "Hey Jarvis" for hands-free activation
+- **Visual Overlay** — transparent always-on-top status indicator
+- **100% Local** — Whisper (STT) + Qwen (reasoning) run on your machine, no cloud APIs
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/faisalahmedsifat/dictator.git
-    cd dictator
-    ```
+## Requirements
 
-2.  **Run the Installer**:
-    ```bash
-    ./install.sh
-    ```
-    *   Downloads required AI models (~1.2GB).
-    *   Sets up the Python environment.
-    *   Enables the background service and asks for your Microphone.
+- Linux with X11 (Wayland not yet supported)
+- Python 3.11+
+- PulseAudio or PipeWire
+- System packages: `ffmpeg`, `xdotool`, `portaudio19-dev`
 
-3.  **That's it!** The overlay should appear at the bottom of your screen.
+## Installation
 
-## 📖 Usage
-
-### 🗣️ Hands-Free (Wake Word)
-1.  Say **"Hey Jarvis"**.
-2.  Listen for the **Chime** and watch the Overlay turn **Green**.
-3.  Speak naturally:
-    *   *"Start dictation"* -> Switches to continuous typing mode.
-    *   *"Open Spotify"* -> Launches the app.
-    *   *"Play some music"* -> Agent interprets and acts.
-
-### ⌨️ Hotkeys (Faster)
-*   **F9**: Toggle **Dictation Mode**. (Green Indicator)
-    *   Types everything you say into the active window.
-    *   Press F9 again to stop.
-*   **F10**: Toggle **Agent Mode**. (Blue Indicator)
-    *   Say a command ("Search web for...").
-    *   The Agent executes it and replies visually.
-
-## 🔧 Troubleshooting
-
-If the bar doesn't appear or commands aren't working:
-1.  **Check Status**:
-    ```bash
-    systemctl --user status dictator
-    ```
-2.  **View Logs**:
-    ```bash
-    journalctl --user -u dictator -f
-    ```
-3.  **Manual Run**: Stop the service and run manually to see errors:
-    ```bash
-    systemctl --user stop dictator
-    ./dictator.sh
-    ```
-
-## 🗑️ Uninstalling
+### Quick Install (Recommended)
 
 ```bash
-systemctl --user stop dictator
-systemctl --user disable dictator
-rm ~/.config/systemd/user/dictator.service
-# Then delete the project folder
+git clone https://github.com/faisalahmedsifat/dictator.git
+cd dictator
+make install
 ```
+
+This will:
+1. Check system dependencies
+2. Create a Python virtual environment
+3. Download AI models (~1.2GB for Qwen + Whisper)
+4. Ask you to select your microphone
+5. Set up and start a systemd user service
+
+### Manual Install
+
+```bash
+# Install system deps
+sudo apt install ffmpeg xdotool portaudio19-dev libportaudio2
+
+# Setup
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Download models
+mkdir -p src/models
+wget -O src/models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
+# Run
+python dictate.py
+```
+
+### Docker
+
+```bash
+make docker-build        # builds image with models (~3GB)
+make docker-run          # runs with audio/X11 passthrough
+```
+
+Or manually:
+```bash
+docker build -t dictator .
+docker run --rm -it --privileged --net=host \
+  -e DISPLAY=$DISPLAY \
+  -e PULSE_SERVER=unix:/run/user/$(id -u)/pulse/native \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v $XAUTHORITY:/root/.Xauthority:ro \
+  -v /run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse:ro \
+  --device /dev/snd \
+  dictator --device "Your Mic Name"
+```
+
+## Usage
+
+### Wake Word
+
+1. Say **"Hey Jarvis"**
+2. Wait for the chime (overlay turns green)
+3. Speak:
+   - *"Start dictation"* — enters continuous typing mode
+   - *"Open Spotify"* — executes as agent command
+   - *"Start agent"* — enters continuous command mode
+
+### Hotkeys
+
+| Key | Action |
+|-----|--------|
+| **F9** | Toggle dictation mode |
+| **F10** | Toggle agent mode |
+| **Ctrl+Space** | Toggle overlay |
+| **Ctrl+Alt+Enter** | Toggle log panel |
+| **Ctrl+Shift+Enter** | Hide all UI |
+
+### Agent Commands
+
+The agent understands natural language for:
+- **Browser**: "Search YouTube for cats", "Open Google"
+- **Volume**: "Set volume to 50%", "Mute", "Volume up"
+- **Apps**: "Open VS Code", "Launch terminal"
+- **Keys**: "Press Ctrl+C", "Press Alt+Tab"
+- **Reactor**: "Ask reactor to refactor this code" (delegates to external agent)
+
+### CLI Options
+
+```bash
+python dictate.py --device "USB Mic"     # specify microphone
+python dictate.py --model small.en       # larger Whisper model
+python dictate.py --no-partial           # disable live partial text
+```
+
+## Status Indicators
+
+| Color | State |
+|-------|-------|
+| Gray | Idle — listening for wake word only |
+| Green | Active — dictating or listening |
+| Blue | Agent — processing commands |
+| Yellow | Processing — executing a tool |
+
+## Management
+
+```bash
+make status         # check service status
+make logs           # follow live logs
+make stop           # stop the service
+make run            # run manually (debug)
+make devices        # list audio devices
+make uninstall      # remove service and venv
+```
+
+## Architecture
+
+```
+dictate.py          Main coordinator (state machine)
+src/
+  audio.py          Mic capture, resampling, sound effects
+  wake_listener.py  "Hey Jarvis" detection (openwakeword)
+  transcriber.py    Real-time STT (faster-whisper)
+  inject.py         Text injection via xdotool
+  agent.py          LLM reasoning + tool execution (Qwen)
+  context.py        Active window/project inference
+  ui.py             Tkinter overlay
+```
+
+## License
+
+MIT

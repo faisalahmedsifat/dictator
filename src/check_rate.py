@@ -1,27 +1,18 @@
-import sounddevice as sd
+"""Check supported sample rates for an audio device."""
 import sys
 
-device_index = 4
-if len(sys.argv) > 1:
-    device_index = int(sys.argv[1])
+import sounddevice as sd
 
-print(f"Testing device {device_index}...")
+device_index = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
-rates = [8000, 16000, 32000, 44100, 48000]
-supported = []
+info = sd.query_devices(device_index)
+print(f"Device {device_index}: {info['name']}")
+print(f"Default rate: {info['default_samplerate']}Hz")
+print()
 
-for r in rates:
+for rate in (8000, 16000, 32000, 44100, 48000):
     try:
-        sd.check_input_settings(device=device_index, channels=1, samplerate=r)
-        print(f"  {r}Hz: OK")
-        supported.append(r)
+        sd.check_input_settings(device=device_index, channels=1, samplerate=rate)
+        print(f"  {rate}Hz: OK")
     except Exception as e:
-        print(f"  {r}Hz: FAILED ({e})")
-
-print(f"Supported rates: {supported}")
-
-try:
-    info = sd.query_devices(device_index)
-    print(f"Default Sample Rate: {info['default_samplerate']}")
-except Exception as e:
-    print(f"Could not query info: {e}")
+        print(f"  {rate}Hz: FAILED ({e})")
