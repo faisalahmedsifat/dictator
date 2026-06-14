@@ -17,6 +17,8 @@ venv: ## Create venv and install dependencies only
 	@python3 -m venv $(VENV)
 	@$(PIP) install --upgrade pip -q
 	@$(PIP) install -r requirements.txt
+	@$(PIP) install openwakeword --no-deps
+	@$(PYTHON) -c "import openwakeword; openwakeword.utils.download_models()"
 	@echo "Virtual environment ready."
 
 run: ## Run manually (stops service first)

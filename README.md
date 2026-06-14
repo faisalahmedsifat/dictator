@@ -8,13 +8,14 @@ Local, privacy-first voice assistant for Linux. Provides global voice typing and
 - **Smart Agent** — natural language commands: open apps, search the web, control volume, simulate keys
 - **Wake Word** — say "Hey Jarvis" for hands-free activation
 - **Visual Overlay** — transparent always-on-top status indicator
-- **100% Local** — Whisper (STT) + Qwen (reasoning) run on your machine, no cloud APIs
+- **Privacy-first** — Whisper (STT) runs locally, Claude CLI handles agent reasoning
 
 ## Requirements
 
 - Linux with X11 (Wayland not yet supported)
 - Python 3.11+
 - PulseAudio or PipeWire
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) (for agent commands)
 - System packages: `ffmpeg`, `xdotool`, `portaudio19-dev`
 
 ## Installation
@@ -97,12 +98,12 @@ docker run --rm -it --privileged --net=host \
 
 ### Agent Commands
 
-The agent understands natural language for:
+The agent (powered by Claude CLI) understands natural language for:
 - **Browser**: "Search YouTube for cats", "Open Google"
 - **Volume**: "Set volume to 50%", "Mute", "Volume up"
 - **Apps**: "Open VS Code", "Launch terminal"
 - **Keys**: "Press Ctrl+C", "Press Alt+Tab"
-- **Reactor**: "Ask reactor to refactor this code" (delegates to external agent)
+- **Claude tasks**: "Refactor this code", "Write tests for this project" (runs Claude in the inferred project directory)
 
 ### CLI Options
 
@@ -141,7 +142,7 @@ src/
   wake_listener.py  "Hey Jarvis" detection (openwakeword)
   transcriber.py    Real-time STT (faster-whisper)
   inject.py         Text injection via xdotool
-  agent.py          LLM reasoning + tool execution (Qwen)
+  agent.py          Command routing via Claude CLI + tool execution
   context.py        Active window/project inference
   ui.py             Tkinter overlay
 ```

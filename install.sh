@@ -9,17 +9,14 @@ echo " Dictator Installer"
 echo "==================================="
 
 # --- Configuration ---
-MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
-MODEL_DIR="src/models"
-MODEL_FILE="$MODEL_DIR/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 VENV_DIR=".venv"
 
 # --- 1. System Dependencies ---
 echo ""
-echo "[1/5] Checking system dependencies..."
+echo "[1/4] Checking system dependencies..."
 
 MISSING=""
-for cmd in ffmpeg xdotool; do
+for cmd in ffmpeg xdotool claude; do
     if ! command -v "$cmd" &>/dev/null; then
         MISSING+=" $cmd"
     fi
@@ -27,13 +24,14 @@ done
 
 if [ -n "$MISSING" ]; then
     echo "  Missing:$MISSING"
-    echo "  Install with: sudo apt install$MISSING portaudio19-dev libportaudio2"
+    echo "  Install with: sudo apt install ffmpeg xdotool portaudio19-dev libportaudio2"
+    echo "  Claude CLI: https://docs.anthropic.com/en/docs/claude-cli"
     read -p "  Press Enter to continue or Ctrl+C to abort..."
 fi
 
 # --- 2. Python Environment ---
 echo ""
-echo "[2/5] Setting up Python environment..."
+echo "[2/4] Setting up Python environment..."
 
 if [ ! -d "$VENV_DIR" ]; then
     python3 -m venv "$VENV_DIR"
@@ -47,20 +45,15 @@ fi
 # openwakeword requires tflite-runtime which doesn't support Python 3.13+
 # We only use ONNX models, so install without deps (onnxruntime already installed above)
 "$VENV_DIR/bin/pip" install openwakeword --no-deps
+# Download openwakeword's bundled ONNX resource models (melspectrogram, embedding, etc.)
+"$VENV_DIR/bin/python" -c "import openwakeword; openwakeword.utils.download_models()"
 
 # --- 3. Download Models ---
 echo ""
-echo "[3/5] Downloading models..."
-mkdir -p "$MODEL_DIR"
+echo "[3/4] Downloading models..."
+mkdir -p src/models
 
-if [ ! -f "$MODEL_FILE" ]; then
-    echo "  Downloading Qwen 2.5 1.5B (~1.2GB)..."
-    wget -q --show-progress -O "$MODEL_FILE" "$MODEL_URL"
-else
-    echo "  Agent model present."
-fi
-
-WAKE_WORD_FILE="$MODEL_DIR/hey_jarvis_v0.1.onnx"
+WAKE_WORD_FILE="src/models/hey_jarvis_v0.1.onnx"
 if [ ! -f "$WAKE_WORD_FILE" ]; then
     echo "  Extracting wake word model..."
     "$VENV_DIR/bin/python" -c "
@@ -81,9 +74,9 @@ fi
 echo "  Caching Whisper base.en model..."
 "$VENV_DIR/bin/python" -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8')" 2>/dev/null
 
-# --- 4. Select Microphone ---
+# --- 4. Select Microphone & Setup Service ---
 echo ""
-echo "[4/5] Selecting microphone..."
+echo "[4/4] Selecting microphone..."
 echo "  Available input devices:"
 echo "  ---"
 "$VENV_DIR/bin/python" src/list_devices.py
@@ -99,9 +92,9 @@ else
     echo "  Using system default."
 fi
 
-# --- 5. Systemd Service ---
+# --- Systemd Service ---
 echo ""
-echo "[5/5] Setting up systemd service..."
+echo "  Setting up systemd service..."
 
 systemctl --user stop dictator 2>/dev/null || true
 systemctl --user disable dictator 2>/dev/null || true
@@ -122,6 +115,7 @@ Type=simple
 Environment=PYTHONUNBUFFERED=1
 Environment=DISPLAY=$X_DISPLAY
 Environment=XAUTHORITY=$X_AUTH
+Environment=PATH=$PATH
 WorkingDirectory=$SCRIPT_DIR
 ExecStart=$SCRIPT_DIR/dictator.sh $DEVICE_ARG
 Restart=always

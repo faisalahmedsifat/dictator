@@ -4,13 +4,11 @@ import time
 from typing import Generator
 
 import numpy as np
-import webrtcvad
 from faster_whisper import WhisperModel
 
 from .audio import audio_queue, fetch_audio
 
 model: WhisperModel | None = None
-vad = webrtcvad.Vad(2)
 
 audio_buffer = np.zeros(0, dtype=np.float32)
 last_text = ""

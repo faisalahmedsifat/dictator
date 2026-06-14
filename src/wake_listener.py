@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 
 import numpy as np
+
+logging.getLogger("openwakeword").setLevel(logging.ERROR)
 from openwakeword.model import Model
 
 SAMPLE_RATE = 16000
@@ -18,7 +21,7 @@ class WakeWordListener:
             models = [model_path]
 
         print(f"[Wake] Loading models: {models}")
-        self.model = Model(wakeword_model_paths=models)
+        self.model = Model(wakeword_models=models)
 
     def process_chunk(self, chunk: np.ndarray) -> str | None:
         """

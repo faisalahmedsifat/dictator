@@ -10,112 +10,6 @@ import webbrowser
 import pulsectl
 from pynput.keyboard import Controller, Key
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "open_browser",
-            "description": "Open a web browser, optionally searching for a query or opening a URL",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "app_name": {
-                        "type": "string",
-                        "description": "Name of the browser (e.g. chrome, firefox)",
-                        "default": "default",
-                    },
-                    "search_query": {
-                        "type": "string",
-                        "description": "Text to search for",
-                    },
-                    "url": {"type": "string", "description": "Direct URL to open"},
-                },
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "system_control",
-            "description": "Control system volume (up/down/mute/set)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "setting": {"type": "string", "enum": ["volume"]},
-                    "action": {
-                        "type": "string",
-                        "enum": ["up", "down", "mute", "set"],
-                    },
-                    "value": {
-                        "type": "integer",
-                        "description": "Percentage value (0-100)",
-                    },
-                },
-                "required": ["setting", "action"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "app_launcher",
-            "description": "Launch a desktop application",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "app_name": {
-                        "type": "string",
-                        "description": "Name of the application (e.g. code, spotify, terminal)",
-                    }
-                },
-                "required": ["app_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "simulate_keys",
-            "description": "Simulate keyboard key presses or text typing",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "keys": {
-                        "type": "string",
-                        "description": "Key combo (e.g. 'ctrl+c', 'alt+enter') or text",
-                    }
-                },
-                "required": ["keys"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "ask_reactor",
-            "description": "Delegate a complex task (coding, research, planning) to the Reactor agent.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "prompt": {
-                        "type": "string",
-                        "description": "Detailed description of the task for Reactor",
-                    },
-                    "project_dir": {
-                        "type": "string",
-                        "description": "Absolute path to the project directory",
-                    },
-                },
-                "required": ["prompt"],
-            },
-        },
-    },
-]
-
-llm = None
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "qwen2.5-1.5b-instruct-q4_k_m.gguf")
-
 APP_ALIASES = {
     "code": "code",
     "vscode": "code",
@@ -129,63 +23,121 @@ APP_ALIASES = {
     "file manager": "nautilus",
 }
 
+SYSTEM_PROMPT = """\
+You are Jarvis, a voice-controlled assistant on Linux. The user gives you spoken commands.
+Respond with a JSON object indicating the action to take. Available actions:
 
-def load_agent() -> None:
-    global llm
-    if llm is not None:
-        return
+1. {"action": "browser", "query": "search text"} - Google search
+2. {"action": "browser", "url": "https://..."} - Open URL
+3. {"action": "youtube", "query": "search text"} - YouTube search
+4. {"action": "volume", "op": "up|down|mute|set", "value": 10} - Volume control
+5. {"action": "app", "name": "app_name"} - Launch application
+6. {"action": "keys", "combo": "ctrl+c"} - Simulate key press
+7. {"action": "claude", "prompt": "detailed task"} - Delegate complex task to Claude agent
+8. {"action": "reply", "text": "response"} - Just respond with text (no action needed)
 
-    from llama_cpp import Llama
+Respond ONLY with valid JSON object. No explanation or markdown."""
 
-    print("[Agent] Loading Qwen model...")
+
+def _parse_action(response_text: str) -> dict | None:
+    """Extract JSON action from Claude's response."""
+    text = response_text.strip()
+
+    # Try direct parse
     try:
-        llm = Llama(
-            model_path=MODEL_PATH,
-            n_gpu_layers=-1,
-            n_ctx=4096,
-            verbose=False,
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Find JSON object in response
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_quote = False
+    escape = False
+    for i in range(start, len(text)):
+        char = text[i]
+        if escape:
+            escape = False
+            continue
+        if char == "\\":
+            escape = True
+            continue
+        if char == '"':
+            in_quote = not in_quote
+        if not in_quote:
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        return None
+    return None
+
+
+def _call_claude_routing(user_text: str) -> dict | None:
+    """Use Claude CLI to interpret a command and return an action dict."""
+    claude_cmd = shutil.which("claude")
+    if not claude_cmd:
+        return {"action": "reply", "text": "Error: 'claude' not found in PATH."}
+
+    full_prompt = f"{SYSTEM_PROMPT}\n\nUser command: \"{user_text}\""
+
+    try:
+        result = subprocess.run(
+            [claude_cmd, "-p", "--dangerously-skip-permissions", full_prompt],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
-        print("[Agent] Model loaded.")
+        if result.returncode != 0:
+            return {"action": "reply", "text": f"Claude error: {result.stderr.strip()}"}
+
+        return _parse_action(result.stdout)
+    except subprocess.TimeoutExpired:
+        return {"action": "reply", "text": "Claude timed out."}
     except Exception as e:
-        print(f"[Agent] Error loading model: {e}")
+        return {"action": "reply", "text": f"Failed to call Claude: {e}"}
 
 
-def handle_open_browser(args: dict) -> str:
-    query = args.get("search_query")
-    url = args.get("url")
-    app = args.get("app_name", "default").lower()
+def _handle_browser(action: dict) -> str:
+    url = action.get("url")
+    query = action.get("query")
 
-    target_url = url
+    if not url and query:
+        url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+    elif not url:
+        url = "https://www.google.com"
 
-    if "youtube" in app:
-        if query:
-            target_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
-        else:
-            target_url = "https://www.youtube.com"
-    elif "google" in app and not target_url:
-        target_url = "https://www.google.com"
-
-    if not target_url:
-        if query:
-            target_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        else:
-            target_url = "https://www.google.com"
-
-    print(f"[Tool] Opening: {target_url}")
     try:
-        webbrowser.open(target_url)
-        return f"Opened: {query if query else target_url}"
+        webbrowser.open(url)
+        return f"Opened: {query or url}"
     except Exception as e:
         return f"Failed to open browser: {e}"
 
 
-def handle_system_control(args: dict) -> str:
-    setting = args.get("setting")
-    action = args.get("action")
-    value = args.get("value", 10)
+def _handle_youtube(action: dict) -> str:
+    query = action.get("query", "")
+    if query:
+        url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+    else:
+        url = "https://www.youtube.com"
 
-    if setting != "volume":
-        return f"Setting '{setting}' not supported."
+    try:
+        webbrowser.open(url)
+        return f"YouTube: {query or 'opened'}"
+    except Exception as e:
+        return f"Failed to open YouTube: {e}"
+
+
+def _handle_volume(action: dict) -> str:
+    op = action.get("op", "up")
+    value = action.get("value", 10)
 
     try:
         with pulsectl.Pulse("dictator-agent") as pulse:
@@ -193,17 +145,17 @@ def handle_system_control(args: dict) -> str:
             sink_info = pulse.get_sink_by_name(sink_name)
             curr_vol = sink_info.volume.value_flat
 
-            if action == "up":
+            if op == "up":
                 new_vol = min(1.0, curr_vol + (value / 100))
-            elif action == "down":
+            elif op == "down":
                 new_vol = max(0.0, curr_vol - (value / 100))
-            elif action == "mute":
+            elif op == "mute":
                 pulse.mute(sink_info, not sink_info.mute)
                 return "Mute toggled."
-            elif action == "set":
+            elif op == "set":
                 new_vol = min(1.0, max(0.0, value / 100))
             else:
-                return f"Unknown action: {action}"
+                return f"Unknown volume op: {op}"
 
             pulse.volume_set_all_chans(sink_info, new_vol)
             return f"Volume set to {int(new_vol * 100)}%"
@@ -211,8 +163,8 @@ def handle_system_control(args: dict) -> str:
         return f"Error controlling volume: {e}"
 
 
-def handle_app_launcher(args: dict) -> str:
-    app = args.get("app_name", "").lower().strip()
+def _handle_app(action: dict) -> str:
+    app = action.get("name", "").lower().strip()
     if not app:
         return "No app name provided."
 
@@ -228,8 +180,8 @@ def handle_app_launcher(args: dict) -> str:
         return f"Failed to launch {cmd}: {e}"
 
 
-def handle_simulate_keys(args: dict) -> str:
-    keys_str = args.get("keys", "").lower().replace("'", "").replace('"', "").strip()
+def _handle_keys(action: dict) -> str:
+    keys_str = action.get("combo", "").lower().replace("'", "").replace('"', "").strip()
     if not keys_str:
         return "No keys provided."
 
@@ -251,13 +203,13 @@ def handle_simulate_keys(args: dict) -> str:
             for k in reversed(py_keys):
                 keyboard.release(k)
 
-            return f"Pressed combo: {keys_str}"
+            return f"Pressed: {keys_str}"
         else:
             if hasattr(Key, keys_str):
                 k = getattr(Key, keys_str)
                 keyboard.press(k)
                 keyboard.release(k)
-                return f"Pressed key: {keys_str}"
+                return f"Pressed: {keys_str}"
             else:
                 keyboard.type(keys_str)
                 return f"Typed: {keys_str}"
@@ -265,28 +217,25 @@ def handle_simulate_keys(args: dict) -> str:
         return f"Failed to simulate keys: {e}"
 
 
-def handle_ask_reactor(args: dict) -> str:
+def _handle_claude_task(action: dict) -> str:
     from .context import infer_project_context
     from .ui import monitor
 
-    prompt = args.get("prompt", "")
-    project_dir = args.get("project_dir")
-
+    prompt = action.get("prompt", "")
     if not prompt:
-        return "No prompt provided for Reactor."
+        return "No prompt provided."
 
-    if not project_dir:
-        project_dir = infer_project_context()
-        if project_dir:
-            print(f"[Tool] Inferred project: {project_dir}")
+    project_dir = infer_project_context()
+    if project_dir:
+        print(f"[Claude] Working in: {project_dir}")
 
-    monitor.update_log(f"Reactor: {prompt}")
+    monitor.update_log(f"Claude: {prompt}")
 
-    reactor_cmd = shutil.which("reactor")
-    if not reactor_cmd:
-        return "Error: 'reactor' not found in PATH."
+    claude_cmd = shutil.which("claude")
+    if not claude_cmd:
+        return "Error: 'claude' not found in PATH."
 
-    cmd = [reactor_cmd, "-p", prompt]
+    cmd = [claude_cmd, "-p", "--dangerously-skip-permissions", prompt]
 
     try:
         process = subprocess.Popen(
@@ -302,126 +251,51 @@ def handle_ask_reactor(args: dict) -> str:
         for line in iter(process.stdout.readline, ""):
             clean_line = line.strip()
             if clean_line:
-                print(f"[Reactor] {clean_line}")
+                print(f"[Claude] {clean_line}")
                 monitor.update_log(clean_line)
                 full_output.append(clean_line)
 
         process.wait()
 
         if process.returncode != 0:
-            return f"Reactor failed with code {process.returncode}"
+            return f"Claude failed with code {process.returncode}"
 
-        return "Reactor Output:\n" + "\n".join(full_output)
+        return "Claude:\n" + "\n".join(full_output[-10:])
 
     except FileNotFoundError:
         return f"Error: directory '{project_dir}' not found."
     except Exception as e:
-        return f"Failed to call Reactor: {e}"
+        return f"Failed to run Claude: {e}"
 
 
-TOOL_HANDLERS = {
-    "open_browser": handle_open_browser,
-    "system_control": handle_system_control,
-    "app_launcher": handle_app_launcher,
-    "simulate_keys": handle_simulate_keys,
-    "ask_reactor": handle_ask_reactor,
+ACTION_HANDLERS = {
+    "browser": _handle_browser,
+    "youtube": _handle_youtube,
+    "volume": _handle_volume,
+    "app": _handle_app,
+    "keys": _handle_keys,
+    "claude": _handle_claude_task,
 }
 
 
-def _extract_tool_call_from_content(content: str) -> list[dict] | None:
-    """Fallback parser for malformed Qwen tool-call output."""
-    try:
-        if "<tool_call>" in content:
-            content = content.split("<tool_call>")[1].split("</tool_call>")[0]
-
-        start_idx = content.find("{")
-        if start_idx == -1:
-            return None
-
-        depth = 0
-        in_quote = False
-        escape = False
-        end_idx = -1
-
-        for i in range(start_idx, len(content)):
-            char = content[i]
-            if escape:
-                escape = False
-                continue
-            if char == "\\":
-                escape = True
-                continue
-            if char == '"':
-                in_quote = not in_quote
-            if not in_quote:
-                if char == "{":
-                    depth += 1
-                elif char == "}":
-                    depth -= 1
-                    if depth == 0:
-                        end_idx = i + 1
-                        break
-
-        if end_idx == -1:
-            raw = content[start_idx:] + "}" * depth
-        else:
-            raw = content[start_idx:end_idx]
-
-        tool_data = json.loads(raw)
-
-        return [
-            {
-                "function": {
-                    "name": tool_data["name"],
-                    "arguments": json.dumps(tool_data["arguments"]),
-                }
-            }
-        ]
-    except (json.JSONDecodeError, KeyError, IndexError):
-        return None
-
-
 def process_command(user_text: str) -> str:
-    """Process a voice command through the LLM agent."""
-    load_agent()
-    if not llm:
-        return "Agent offline (model failed to load)"
+    """Process a voice command by routing through Claude CLI."""
+    print(f"[Agent] Processing: '{user_text}'")
 
-    messages = [
-        {
-            "role": "system",
-            "content": "You are Jarvis, a helpful assistant on Linux. Use tools to fulfill requests.",
-        },
-        {"role": "user", "content": user_text},
-    ]
+    action = _call_claude_routing(user_text)
 
-    response = llm.create_chat_completion(
-        messages=messages, tools=TOOLS, tool_choice="auto"
-    )
+    if not action:
+        return "Could not understand the command."
 
-    choice = response["choices"][0]["message"]
-    tool_calls = choice.get("tool_calls", [])
+    action_type = action.get("action", "reply")
 
-    # Fallback extraction for malformed output
-    if not tool_calls:
-        content = choice.get("content", "")
-        if "<tool_call>" in content or "{" in content:
-            tool_calls = _extract_tool_call_from_content(content) or []
+    if action_type == "reply":
+        return action.get("text", "Done.")
 
-    if not tool_calls:
-        return choice.get("content", "No response.")
-
-    t_call = tool_calls[0]
-    fn_name = t_call["function"]["name"]
-    raw_args = t_call["function"]["arguments"]
-    fn_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
-
-    print(f"[Agent] Call: {fn_name}({fn_args})")
-
-    handler = TOOL_HANDLERS.get(fn_name)
+    handler = ACTION_HANDLERS.get(action_type)
     if not handler:
-        return f"Unknown tool: {fn_name}"
+        return f"Unknown action: {action_type}"
 
-    result = handler(fn_args)
-    print(f"[Tool] Result: {result}")
+    result = handler(action)
+    print(f"[Agent] Result: {result}")
     return result

@@ -152,7 +152,7 @@ def handle_routing(stream_iterator) -> None:
 
     elif cmd:
         print(f"[Routing] Intent: one-shot command '{cmd}'")
-        monitor.update_log(f"User: {cmd}")
+        monitor.update_log_user(cmd)
         play_sound("success")
         monitor.update_status("processing")
 
@@ -231,7 +231,7 @@ def handle_agent_loop(stream_iterator) -> None:
             continue
 
         print(f"[Agent Loop] Command: '{cmd}'")
-        monitor.update_log(f"User: {cmd}")
+        monitor.update_log_user(cmd)
 
         if cmd in EXIT_COMMANDS:
             print("[Agent Loop] Exiting")
@@ -265,9 +265,10 @@ def main() -> None:
     load_model(args.model)
 
     hotkeys = GlobalHotKeys({
+        "<ctrl>+<space>": toggle_dictation,
         "<f9>": toggle_dictation,
         "<f10>": toggle_agent,
-        "<ctrl>+<space>": toggle_ui,
+        "<shift>+<alt>+<space>": toggle_ui,
         "<ctrl>+<alt>+<enter>": toggle_log,
         "<ctrl>+<shift>+<enter>": hide_all,
     })
@@ -293,10 +294,10 @@ def main() -> None:
 
                         if word:
                             print(f"\n[Wake] Detected: {word}")
-                            monitor.update_text("I'm listening...")
+                            monitor.update_text("Dictating...")
                             monitor.update_status("listening")
                             play_sound("wake")
-                            current_state = State.ROUTING
+                            current_state = State.DICTATING
                             force_reset()
 
                     elif current_state == State.ROUTING:
