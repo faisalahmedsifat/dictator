@@ -24,7 +24,6 @@ jobs:
       - name: Install
         run: |
           pip install -e ".[windows,dev]"
-          pip install openwakeword --no-deps
 
       - name: Import tests
         run: |
@@ -85,7 +84,6 @@ jobs:
       - name: Install
         run: |
           pip install -e ".[linux,dev]"
-          pip install openwakeword --no-deps
 
       - name: Import tests
         run: |

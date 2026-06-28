@@ -14,7 +14,7 @@ from dictator.utils.paths import get_models_dir
 
 logger = logging.getLogger(__name__)
 
-WAKE_WORD_FILENAME = "hey_jarvis_v0.1.onnx"
+WAKE_WORD_FILENAME = "hey_jarvis_v0.1.tflite"
 
 MAX_DOWNLOAD_RETRIES = 3
 RETRY_BACKOFF_BASE = 5.0
@@ -83,7 +83,13 @@ class ModelManager:
         """Check model files exist and are non-trivially sized."""
         results = {}
         wake_path = self._models_dir / WAKE_WORD_FILENAME
-        results["wake_word"] = wake_path.exists() and wake_path.stat().st_size > 10_000
+        has_wake = wake_path.exists() and wake_path.stat().st_size > 10_000
+        if not has_wake:
+            has_wake = any(
+                f.stat().st_size > 10_000
+                for f in self._models_dir.glob("*jarvis*")
+            )
+        results["wake_word"] = has_wake
         return results
 
     def models_available(self) -> bool:
@@ -92,32 +98,36 @@ class ModelManager:
         return all(integrity.values())
 
     def _extract_wake_word_model(self, dest: Path) -> bool:
-        """Extract the wake word ONNX model from the openwakeword package."""
+        """Download the wake word model via openwakeword's download utility."""
         try:
-            import openwakeword
+            from openwakeword.utils import download_models
 
-            oww_dir = Path(openwakeword.__file__).parent / "resources" / "models"
-            source = oww_dir / WAKE_WORD_FILENAME
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            self._report_progress("Downloading wake word model...", 0.2)
 
-            if source.exists():
-                shutil.copy2(source, dest)
-                logger.info(f"Extracted wake word model to {dest}")
+            download_models(
+                model_names=["hey_jarvis_v0.1"],
+                target_directory=str(dest.parent),
+            )
+
+            if dest.exists():
+                logger.info(f"Wake word model ready at {dest}")
+                self._report_progress("Wake word model ready", 1.0)
                 return True
 
-            for onnx_file in oww_dir.glob("*.onnx"):
-                if "jarvis" in onnx_file.name.lower():
-                    shutil.copy2(onnx_file, dest)
-                    logger.info(f"Extracted wake word model from {onnx_file.name}")
-                    return True
+            for candidate in dest.parent.glob("*jarvis*"):
+                logger.info(f"Wake word model available: {candidate.name}")
+                self._report_progress("Wake word model ready", 1.0)
+                return True
 
-            logger.warning("Could not find wake word model in openwakeword package")
+            logger.warning("Download completed but model file not found")
             return False
 
         except ImportError:
             logger.warning("openwakeword not installed, wake word model unavailable")
             return False
         except Exception as e:
-            logger.error(f"Failed to extract wake word model: {e}")
+            logger.error(f"Failed to download wake word model: {e}")
             return False
 
     def _report_progress(self, description: str, fraction: float) -> None:
