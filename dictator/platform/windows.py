@@ -68,12 +68,18 @@ class WindowsVolumeController(VolumeController):
 
     def _initialize(self) -> None:
         try:
-            from comtypes import CLSCTX_ALL
-            from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+            from pycaw.pycaw import AudioUtilities
 
-            devices = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            self._interface = interface.QueryInterface(IAudioEndpointVolume)
+            device = AudioUtilities.GetSpeakers()
+            # pycaw >= 2024: AudioDevice wraps endpoint volume directly
+            if hasattr(device, "EndpointVolume"):
+                self._interface = device.EndpointVolume
+            else:
+                # Legacy pycaw: use COM Activate
+                from comtypes import CLSCTX_ALL
+                from pycaw.pycaw import IAudioEndpointVolume
+                interface = device.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+                self._interface = interface.QueryInterface(IAudioEndpointVolume)
         except Exception as e:
             logger.warning(f"Failed to initialize volume control: {e}")
             self._interface = None

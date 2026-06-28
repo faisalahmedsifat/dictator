@@ -84,10 +84,23 @@ class ModelManager:
         if _is_frozen():
             return self._ensure_bundled_models()
 
+        # Check our models dir first
         wake_path = self._models_dir / WAKE_WORD_FILENAME
-        if not wake_path.exists():
-            return self._extract_wake_word_model(wake_path)
-        return True
+        if wake_path.exists():
+            return True
+
+        # Check openwakeword's package resources (already downloaded via pip/download_models)
+        try:
+            import openwakeword
+            oww_dir = Path(openwakeword.__file__).parent / "resources" / "models"
+            if any(oww_dir.glob("*jarvis*")):
+                logger.info("Wake word model found in openwakeword package")
+                return True
+        except ImportError:
+            pass
+
+        # Not found anywhere — download it
+        return self._extract_wake_word_model(wake_path)
 
     def _ensure_bundled_models(self) -> bool:
         """When running frozen, verify bundled openwakeword models are accessible."""
