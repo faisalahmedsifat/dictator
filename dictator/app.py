@@ -8,7 +8,8 @@ import time
 from typing import Any
 
 from dictator.agent.commands import CommandRegistry
-from dictator.agent.service import AgentService, CLIBackend
+from dictator.agent.backends import create_backend
+from dictator.agent.service import AgentService
 from dictator.agent.tools.app_launcher import AppLaunchCommand
 from dictator.agent.tools.browser import OpenBrowserCommand
 from dictator.agent.tools.keys import SimulateKeysCommand
@@ -255,10 +256,7 @@ class DictatorApp:
         registry.register(AppLaunchCommand(app_launcher))
         registry.register(SimulateKeysCommand())
         registry.register(ReactorCommand(window_ctx))
-        backend = CLIBackend(
-            executable=config.agent.cli_backend,
-            timeout=config.agent.timeout_seconds,
-        )
+        backend = create_backend(config.agent.cli_backend, timeout=config.agent.timeout_seconds)
         self.agent = AgentService(registry, backend)
 
         # UI
