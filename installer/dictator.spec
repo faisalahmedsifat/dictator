@@ -80,7 +80,6 @@ a = Analysis(
     excludes=[
         "matplotlib",
         "tkinter.test",
-        "unittest",
         "pytest",
         "setuptools",
         "pip",
