@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 from dictator.agent.commands import CommandRegistry
@@ -385,11 +386,28 @@ class DictatorApp:
             from openwakeword.model import Model as OWWModel
             from dictator.utils.paths import get_models_dir
 
-            model_path = get_models_dir() / "hey_jarvis_v0.1.onnx"
-            if model_path.exists():
-                return WakeWordAdapter(str(model_path))
+            models_dir = get_models_dir()
+            # Try both .onnx and .tflite formats
+            for ext in (".onnx", ".tflite"):
+                model_path = models_dir / f"hey_jarvis_v0.1{ext}"
+                if model_path.exists():
+                    logger.info(f"Wake word model found: {model_path}")
+                    return WakeWordAdapter(str(model_path))
+
+            # Check openwakeword's own resources as fallback
+            import openwakeword
+            oww_dir = Path(openwakeword.__file__).parent / "resources" / "models"
+            for ext in (".onnx", ".tflite"):
+                model_path = oww_dir / f"hey_jarvis_v0.1{ext}"
+                if model_path.exists():
+                    logger.info(f"Wake word model found in package: {model_path}")
+                    return WakeWordAdapter(str(model_path))
+
+            logger.warning("Wake word model not found, wake word disabled")
         except ImportError:
-            pass
+            logger.warning("openwakeword not installed, wake word disabled")
+        except Exception as e:
+            logger.warning(f"Wake word init failed: {e}")
         return NullWakeListener()
 
 
@@ -401,7 +419,7 @@ class WakeWordAdapter:
     def __init__(self, model_path: str):
         import numpy as np
         from openwakeword.model import Model
-        self._model = Model(wakeword_model_paths=[model_path])
+        self._model = Model(wakeword_models=[model_path])
 
     def process_chunk(self, chunk) -> str | None:
         import numpy as np
