@@ -72,6 +72,7 @@ class CLIProcessBackend(AIBackend):
                 capture_output=True,
                 text=True,
                 timeout=self._timeout,
+                shell=(sys.platform == "win32"),
                 creationflags=(
                     subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 ),
