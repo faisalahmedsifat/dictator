@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import sys
 import threading
 import time
 import urllib.request
@@ -18,6 +19,11 @@ WAKE_WORD_FILENAME = "hey_jarvis_v0.1.tflite"
 
 MAX_DOWNLOAD_RETRIES = 3
 RETRY_BACKOFF_BASE = 5.0
+
+
+def _is_frozen() -> bool:
+    """Check if running inside a PyInstaller bundle."""
+    return getattr(sys, "frozen", False)
 
 
 class ModelManager:
@@ -73,11 +79,51 @@ class ModelManager:
         """Ensure wake word model is available. Returns True if all models are ready.
 
         Whisper models are auto-downloaded by faster-whisper on first use.
+        When running from PyInstaller bundle, openwakeword resources are already bundled.
         """
+        if _is_frozen():
+            return self._ensure_bundled_models()
+
         wake_path = self._models_dir / WAKE_WORD_FILENAME
         if not wake_path.exists():
             return self._extract_wake_word_model(wake_path)
         return True
+
+    def _ensure_bundled_models(self) -> bool:
+        """When running frozen, verify bundled openwakeword models are accessible."""
+        try:
+            import openwakeword
+            oww_models_dir = Path(openwakeword.__file__).parent / "resources" / "models"
+
+            if not oww_models_dir.exists():
+                oww_models_dir.mkdir(parents=True, exist_ok=True)
+
+            has_jarvis = any(oww_models_dir.glob("*jarvis*"))
+            if has_jarvis:
+                logger.info("Bundled wake word model found")
+                self._report_progress("Models ready", 1.0)
+                return True
+
+            self._report_progress("Downloading wake word model...", 0.2)
+            return self._download_to_oww_resources(oww_models_dir)
+
+        except Exception as e:
+            logger.error(f"Failed to ensure bundled models: {e}")
+            return False
+
+    def _download_to_oww_resources(self, target_dir: Path) -> bool:
+        """Download wake word model to openwakeword's expected resource location."""
+        try:
+            from openwakeword.utils import download_models
+            download_models(model_names=["hey_jarvis_v0.1"], target_directory=str(target_dir))
+
+            if any(target_dir.glob("*jarvis*")):
+                self._report_progress("Wake word model ready", 1.0)
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Download to resources failed: {e}")
+            return False
 
     def verify_integrity(self) -> dict[str, bool]:
         """Check model files exist and are non-trivially sized."""

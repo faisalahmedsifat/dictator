@@ -4,14 +4,19 @@
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files
+
 block_cipher = None
 project_root = Path(SPECPATH).parent
+
+# Collect openwakeword's resource models (embedding, melspectrogram, vad, wake words)
+oww_datas = collect_data_files("openwakeword", subdir="resources")
 
 a = Analysis(
     [str(project_root / "dictator" / "__main__.py")],
     pathex=[str(project_root)],
     binaries=[],
-    datas=[],
+    datas=oww_datas,
     hiddenimports=[
         "dictator",
         "dictator.core",
@@ -30,6 +35,7 @@ a = Analysis(
         "dictator.platform.null",
         "dictator.platform.safety",
         "dictator.agent",
+        "dictator.agent.backends",
         "dictator.agent.commands",
         "dictator.agent.sandbox",
         "dictator.agent.service",
@@ -69,6 +75,7 @@ a = Analysis(
         "faster_whisper",
         "ctranslate2",
         "openwakeword",
+        "openwakeword.utils",
         "onnxruntime",
         "sounddevice",
         "scipy.signal",
