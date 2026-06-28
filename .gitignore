@@ -1,21 +1,42 @@
-# Virtual environments
-.venv/
-dictate/
-
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
 *.egg-info/
+*.egg
 dist/
 build/
+.eggs/
 
-# Models (downloaded at install)
-src/models/
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application data (created at runtime)
+*.log
+crash_report.txt
+
+# Models (downloaded at runtime, too large for git)
+dictator/models/
+
+# PyInstaller
+*.spec.bak
+
+# Inno Setup output
+Output/
 
 # Environment
 .env
-
-# Debug artifacts
-debug_thoughts.log
-todo_state.json
+.env.local

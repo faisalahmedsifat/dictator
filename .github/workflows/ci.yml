@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install
+        run: |
+          pip install -e ".[windows,dev]"
+          pip install openwakeword --no-deps
+
+      - name: Import tests
+        run: |
+          python -c "import dictator; print(dictator.__version__)"
+          python -c "from dictator.core.events import EventBus, Event, EventType"
+          python -c "from dictator.core.states import StateMachine, StateID"
+          python -c "from dictator.core.config import AppConfig; assert AppConfig().validate() == []"
+          python -c "from dictator.core.resilience import CircuitBreaker, RetryPolicy, HealthMonitor"
+          python -c "from dictator.platform.windows import WindowsFactory"
+          python -c "from dictator.agent.commands import CommandRegistry"
+          python -c "from dictator.agent.tools.browser import OpenBrowserCommand"
+          python -c "from dictator.app import AppBuilder"
+
+      - name: Functional tests
+        run: |
+          python -c "
+          from dictator.core.events import EventBus, Event, EventType
+          bus = EventBus()
+          results = []
+          bus.subscribe(EventType.TEXT_UPDATED, lambda e: results.append(e.data))
+          bus.publish(Event(EventType.TEXT_UPDATED, 'test'))
+          assert results == ['test']
+          "
+          python -c "
+          from dictator.core.resilience import CircuitBreaker, CircuitState
+          cb = CircuitBreaker('test', failure_threshold=2, reset_timeout=0.1)
+          cb.record_failure(RuntimeError())
+          cb.record_failure(RuntimeError())
+          assert cb.state == CircuitState.OPEN
+          "
+          python -c "
+          from dictator.agent.tools.browser import OpenBrowserCommand
+          cmd = OpenBrowserCommand()
+          assert cmd.validate({'url': 'javascript:x'}) is not None
+          assert cmd.validate({'url': 'https://ok.com'}) is None
+          "
+          python -c "
+          from dictator.agent.tools.keys import SimulateKeysCommand
+          cmd = SimulateKeysCommand()
+          assert cmd.validate({'keys': 'alt+f4'}) is not None
+          assert cmd.validate({'keys': 'ctrl+s'}) is None
+          "
+
+  test-linux:
+    name: Test (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install system deps
+        run: sudo apt-get install -y portaudio19-dev xdotool
+
+      - name: Install
+        run: |
+          pip install -e ".[linux,dev]"
+          pip install openwakeword --no-deps
+
+      - name: Import tests
+        run: |
+          python -c "import dictator; print(dictator.__version__)"
+          python -c "from dictator.core.events import EventBus"
+          python -c "from dictator.core.config import AppConfig; assert AppConfig().validate() == []"
+          python -c "from dictator.platform.linux import LinuxFactory"
+          python -c "from dictator.app import AppBuilder"
+
+      - name: Functional tests
+        run: |
+          python -c "
+          from dictator.core.events import EventBus, Event, EventType
+          bus = EventBus()
+          results = []
+          bus.subscribe(EventType.TEXT_UPDATED, lambda e: results.append(e.data))
+          bus.publish(Event(EventType.TEXT_UPDATED, 'test'))
+          assert results == ['test']
+          "

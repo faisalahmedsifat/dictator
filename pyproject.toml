@@ -1,31 +1,71 @@
 [project]
 name = "dictator"
-version = "1.0.0"
-description = "Local, privacy-first voice assistant for Linux with global dictation and smart agent control"
-readme = "README.md"
-license = "MIT"
+version = "2.0.0"
+description = "Privacy-first voice assistant with global dictation and smart agent control"
 requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Dictator Contributors"},
+]
+keywords = ["voice", "assistant", "dictation", "speech-to-text", "whisper"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
 dependencies = [
     "sounddevice>=0.4.6",
-    "numpy>=1.24.0",
-    "scipy>=1.10.0",
-    "faster-whisper>=1.0.0",
-    "pynput>=1.7.6",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "faster-whisper>=1.0",
     "webrtcvad>=2.0.10",
-    "onnxruntime>=1.16.0",
-    "pulsectl>=23.5.0",
-    "psutil>=5.9.0",
-    "llama-cpp-python>=0.2.0",
-    "scikit-learn>=1.0",
-    "requests>=2.0",
+    "pynput>=1.7",
+    "onnxruntime>=1.15",
+    "psutil>=5.9",
+    "llama-cpp-python>=0.2",
+]
+
+[project.optional-dependencies]
+windows = [
+    "pycaw>=20230407",
+    "comtypes>=1.2",
+    "winotify>=1.1",
+    "pystray>=0.19",
+    "Pillow>=10.0",
+]
+linux = [
+    "pulsectl>=23.5",
+]
+dev = [
+    "pyinstaller>=6.0",
+    "pytest>=7.0",
+    "ruff>=0.1",
 ]
 
 [project.scripts]
 dictator = "dictator.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/dictator-voice/dictator"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["dictator"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

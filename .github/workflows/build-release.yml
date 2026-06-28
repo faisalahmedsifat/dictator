@@ -1,0 +1,270 @@
+name: Build Installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. 2.0.0)"
+        required: false
+        default: "dev"
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ============================================================
+  # Windows Installer (EXE via PyInstaller + Inno Setup)
+  # ============================================================
+  build-windows:
+    name: Windows Installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[windows,dev]"
+          pip install openwakeword --no-deps
+
+      - name: Run tests
+        run: |
+          python -c "import dictator; print(f'Version: {dictator.__version__}')"
+          python -c "from dictator.platform.windows import WindowsFactory; WindowsFactory()"
+          python -c "from dictator.core.config import AppConfig; assert AppConfig().validate() == []"
+          python -c "from dictator.agent.tools.browser import OpenBrowserCommand; assert OpenBrowserCommand().validate({'url': 'https://x.com'}) is None"
+
+      - name: Build with PyInstaller
+        run: pyinstaller installer/dictator.spec --noconfirm --clean
+
+      - name: Verify build output
+        run: |
+          if (!(Test-Path "dist\Dictator\Dictator.exe")) { throw "Build failed: EXE not found" }
+          $size = [math]::Round((Get-Item "dist\Dictator\Dictator.exe").Length / 1MB, 1)
+          Write-Host "Dictator.exe: $size MB"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer with Inno Setup
+        run: |
+          $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
+          iscc installer\dictator.iss
+
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/DictatorSetup-*.exe
+          if-no-files-found: error
+
+      - name: Upload Windows Bundle (portable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: dist/Dictator/
+
+  # ============================================================
+  # Linux Packages (.deb + AppImage)
+  # ============================================================
+  build-linux:
+    name: Linux Packages
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            portaudio19-dev \
+            libportaudio2 \
+            ffmpeg \
+            xdotool \
+            libfuse2 \
+            desktop-file-utils
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[linux,dev]"
+          pip install openwakeword --no-deps
+
+      - name: Run tests
+        run: |
+          python -c "import dictator; print(f'Version: {dictator.__version__}')"
+          python -c "from dictator.core.config import AppConfig; assert AppConfig().validate() == []"
+          python -c "from dictator.core.resilience import CircuitBreaker, CircuitState; cb = CircuitBreaker('t', 2, 0.1); cb.record_failure(Exception()); cb.record_failure(Exception()); assert cb.state == CircuitState.OPEN"
+
+      - name: Build with PyInstaller
+        run: pyinstaller installer/dictator.spec --noconfirm --clean
+
+      - name: Verify build
+        run: |
+          test -f dist/Dictator/Dictator || (echo "Build failed" && exit 1)
+          echo "Binary size: $(du -sh dist/Dictator/Dictator | cut -f1)"
+
+      - name: Create .deb package
+        run: |
+          VERSION="${{ github.ref_name || inputs.version || '2.0.0' }}"
+          VERSION="${VERSION#v}"  # Strip leading 'v'
+          PKG_DIR="dictator_${VERSION}_amd64"
+
+          mkdir -p "$PKG_DIR/DEBIAN"
+          mkdir -p "$PKG_DIR/usr/local/bin"
+          mkdir -p "$PKG_DIR/usr/local/lib/dictator"
+          mkdir -p "$PKG_DIR/usr/share/applications"
+
+          # Copy binary bundle
+          cp -r dist/Dictator/* "$PKG_DIR/usr/local/lib/dictator/"
+
+          # Create launcher script
+          cat > "$PKG_DIR/usr/local/bin/dictator" << 'LAUNCHER'
+          #!/bin/bash
+          exec /usr/local/lib/dictator/Dictator "$@"
+          LAUNCHER
+          chmod +x "$PKG_DIR/usr/local/bin/dictator"
+
+          # Desktop entry
+          cat > "$PKG_DIR/usr/share/applications/dictator.desktop" << 'DESKTOP'
+          [Desktop Entry]
+          Name=Dictator
+          Comment=Privacy-first voice assistant
+          Exec=/usr/local/bin/dictator
+          Terminal=false
+          Type=Application
+          Categories=Utility;Accessibility;
+          Keywords=voice;dictation;speech;
+          DESKTOP
+
+          # Control file
+          cat > "$PKG_DIR/DEBIAN/control" << CONTROL
+          Package: dictator
+          Version: ${VERSION}
+          Architecture: amd64
+          Maintainer: Dictator Project <dictator@example.com>
+          Depends: ffmpeg, portaudio19-dev, xdotool
+          Section: utils
+          Priority: optional
+          Description: Privacy-first voice assistant with global dictation
+           Local voice assistant with speech-to-text dictation and
+           smart agent control. Runs entirely offline.
+          CONTROL
+
+          dpkg-deb --build "$PKG_DIR"
+          echo "Created: ${PKG_DIR}.deb ($(du -sh ${PKG_DIR}.deb | cut -f1))"
+
+      - name: Create AppImage
+        run: |
+          VERSION="${{ github.ref_name || inputs.version || '2.0.0' }}"
+          VERSION="${VERSION#v}"
+
+          # Download appimagetool
+          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          chmod +x appimagetool
+
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/lib/dictator
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          cp -r dist/Dictator/* AppDir/usr/lib/dictator/
+
+          # Launcher
+          cat > AppDir/usr/bin/dictator << 'LAUNCHER'
+          #!/bin/bash
+          HERE="$(dirname "$(dirname "$(readlink -f "$0")")")"
+          exec "$HERE/lib/dictator/Dictator" "$@"
+          LAUNCHER
+          chmod +x AppDir/usr/bin/dictator
+
+          # AppRun
+          cat > AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/dictator" "$@"
+          APPRUN
+          chmod +x AppDir/AppRun
+
+          # Desktop file
+          cat > AppDir/dictator.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=Dictator
+          Exec=dictator
+          Icon=dictator
+          Type=Application
+          Categories=Utility;
+          DESKTOP
+          cp AppDir/dictator.desktop AppDir/usr/share/applications/
+
+          # Placeholder icon (solid circle)
+          python -c "
+          from PIL import Image, ImageDraw
+          img = Image.new('RGBA', (256, 256), (0,0,0,0))
+          d = ImageDraw.Draw(img)
+          d.ellipse([32,32,224,224], fill='#00ccff')
+          img.save('AppDir/dictator.png')
+          img.save('AppDir/usr/share/icons/hicolor/256x256/apps/dictator.png')
+          " 2>/dev/null || touch AppDir/dictator.png
+
+          # Build AppImage
+          ARCH=x86_64 ./appimagetool AppDir "Dictator-${VERSION}-x86_64.AppImage"
+          echo "Created: Dictator-${VERSION}-x86_64.AppImage"
+
+      - name: Upload .deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: "*.deb"
+          if-no-files-found: error
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: "*.AppImage"
+          if-no-files-found: error
+
+  # ============================================================
+  # Create GitHub Release (only on tag push)
+  # ============================================================
+  release:
+    name: Create Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/windows-installer/*
+            artifacts/linux-deb/*
+            artifacts/linux-appimage/*
