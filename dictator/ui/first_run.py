@@ -117,8 +117,8 @@ class FirstRunWizard:
         tk.Label(
             self._container,
             text=(
-                "Dictator needs to download AI models for speech recognition and the voice agent.\n"
-                "This requires ~1.5 GB of disk space and may take a few minutes."
+                "Dictator will set up the wake word model for voice activation.\n"
+                "The Whisper speech model is downloaded automatically on first use (~150 MB)."
             ),
             font=("Segoe UI", 11),
             wraplength=500,

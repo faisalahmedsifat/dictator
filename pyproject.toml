@@ -30,7 +30,6 @@ dependencies = [
     "pynput>=1.7",
     "onnxruntime>=1.15",
     "psutil>=5.9",
-    "llama-cpp-python>=0.2",
 ]
 
 [project.optional-dependencies]

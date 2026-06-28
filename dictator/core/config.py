@@ -39,9 +39,8 @@ class AudioConfig:
 
 @dataclass
 class AgentConfig:
-    model_name: str = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
-    max_tokens: int = 512
-    timeout_seconds: float = 10.0
+    cli_backend: str = "claude"
+    timeout_seconds: float = 30.0
     enabled: bool = True
 
 

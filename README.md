@@ -89,7 +89,7 @@ Requires: Python 3.11+, PyInstaller, and optionally Inno Setup for the EXE insta
 dictator/
   core/        — Events, state machine, models, config, resilience, lifecycle
   platform/    — Interfaces + Windows/Linux/Null implementations
-  agent/       — LLM service, command registry, tool implementations
+  agent/       — AI agent service (via CLI tools), command registry, tool implementations
   audio/       — Resilient audio stream, sound feedback
   ui/          — Overlay, system tray, hotkeys, presence detection
   utils/       — Cross-platform paths, text utilities

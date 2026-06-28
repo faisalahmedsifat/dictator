@@ -68,7 +68,6 @@ a = Analysis(
         "PIL.ImageDraw",
         "faster_whisper",
         "ctranslate2",
-        "llama_cpp",
         "openwakeword",
         "onnxruntime",
         "sounddevice",
