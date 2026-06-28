@@ -83,6 +83,28 @@ Write-Host "  Build verified." -ForegroundColor Green
 if (-not $SkipInnoSetup) {
     Write-Host "[4/4] Creating installer with Inno Setup..." -ForegroundColor Yellow
 
+    # Ensure icon exists
+    $IconPath = Join-Path $ProjectRoot "installer\icon.ico"
+    if (-not (Test-Path $IconPath)) {
+        Write-Host "  Generating icon.ico..." -ForegroundColor Gray
+        python -c @"
+from PIL import Image, ImageDraw
+sizes = [256, 128, 64, 48, 32, 16]
+images = []
+for size in sizes:
+    img = Image.new('RGBA', (size, size), (0,0,0,0))
+    d = ImageDraw.Draw(img)
+    p = max(1, size // 16)
+    d.ellipse([p, p, size-p, size-p], fill=(30, 140, 255))
+    mw, mh = size // 5, size // 3
+    mx, my = (size - mw) // 2, size // 4
+    d.rounded_rectangle([mx, my, mx+mw, my+mh], radius=mw//2, fill=(255,255,255,240))
+    images.append(img)
+images[0].save('$($IconPath -replace '\\','/')', format='ICO', sizes=[(s,s) for s in sizes], append_images=images[1:])
+"@
+        if ($LASTEXITCODE -ne 0) { Write-Host "  Warning: could not generate icon" -ForegroundColor Red }
+    }
+
     $IssFile = Join-Path $ProjectRoot "installer\dictator.iss"
     $IsccPath = Get-Command "iscc" -ErrorAction SilentlyContinue
 

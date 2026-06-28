@@ -58,6 +58,27 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
 
+      - name: Ensure icon exists
+        run: |
+          if (!(Test-Path "installer\icon.ico")) {
+            python -c "
+from PIL import Image, ImageDraw
+sizes = [256, 128, 64, 48, 32, 16]
+images = []
+for size in sizes:
+    img = Image.new('RGBA', (size, size), (0,0,0,0))
+    d = ImageDraw.Draw(img)
+    p = max(1, size // 16)
+    d.ellipse([p, p, size-p, size-p], fill=(30, 140, 255))
+    mw, mh = size // 5, size // 3
+    mx, my = (size - mw) // 2, size // 4
+    d.rounded_rectangle([mx, my, mx+mw, my+mh], radius=mw//2, fill=(255,255,255,240))
+    images.append(img)
+images[0].save('installer/icon.ico', format='ICO', sizes=[(s,s) for s in sizes], append_images=images[1:])
+print('Generated fallback icon.ico')
+"
+          }
+
       - name: Build installer with Inno Setup
         run: |
           $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
